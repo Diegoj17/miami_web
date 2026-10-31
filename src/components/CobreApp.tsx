@@ -27,9 +27,12 @@ export interface ServerGoogleUser {
 
 export default function CobreApp({
   googleOAuthConfigured = false,
+  demoLoginAllowed = false,
   serverGoogleUser = null,
 }: {
   googleOAuthConfigured?: boolean;
+  /** Selector de cuentas de demostración (solo desarrollo, sin OAuth real). */
+  demoLoginAllowed?: boolean;
   serverGoogleUser?: ServerGoogleUser | null;
 }) {
   const [screen, setScreen] = useState<Screen>("landing");
@@ -61,7 +64,11 @@ export default function CobreApp({
     }
 
     const savedSession = loadActiveSession();
-    if (savedSession?.mode === "google") {
+    // Con OAuth real, una sesión de Google solo vale si el servidor validó la cookie firmada:
+    // lo guardado en localStorage no prueba nada.
+    if (savedSession?.mode === "google" && !demoLoginAllowed) {
+      saveActiveSession(null);
+    } else if (savedSession?.mode === "google") {
       const store = loadAccountsStore();
       const account = store[savedSession.email.toLowerCase()];
       if (account) {
@@ -75,7 +82,7 @@ export default function CobreApp({
     }
 
     setHydrated(true);
-  }, [serverGoogleUser]);
+  }, [serverGoogleUser, demoLoginAllowed]);
 
   const navigate = (next: Screen) => {
     if (next === "portal" && !session) {
@@ -106,6 +113,7 @@ export default function CobreApp({
     name: string;
     avatarUrl?: string;
   }) => {
+    if (!demoLoginAllowed) return;
     const profile = getOrCreateGoogleUser(params);
     const nextSession: ActiveSession = {
       mode: "google",
@@ -187,6 +195,7 @@ export default function CobreApp({
         <LoginScreen
           onBack={() => navigate("landing")}
           googleOAuthConfigured={googleOAuthConfigured}
+          demoLoginAllowed={demoLoginAllowed}
           onGoogleLoginSuccess={handleGoogleLoginSuccess}
           onGuestLookupSuccess={({ guestName, lookupQuery, appointments }) => {
             const guestSession: ActiveSession = {
@@ -247,11 +256,7 @@ export default function CobreApp({
         />
       )}
 
-      <Footer
-        screen={screen}
-        hasSession={Boolean(sessionMode)}
-        openPortalTab={openPortalTab}
-      />
+      <Footer screen={screen} />
     </div>
   );
 }

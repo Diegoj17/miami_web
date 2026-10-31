@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BOOKING_ENABLED } from "@/lib/config";
 import { Barber, photos } from "@/lib/data";
 import { Icon } from "./Icons";
 import { BookingButton, Button, Eyebrow } from "./UIPrimitives";
@@ -87,10 +88,13 @@ export function PortfolioScreen({
 
       <div className="sticky-book">
         <div>
-          <small>Agenda en integración</small>
+          <small>{BOOKING_ENABLED ? "Reserva en línea" : "Agenda en integración"}</small>
           <strong>Con {barber.name}</strong>
         </div>
-        <BookingButton label={`Agendar con ${barber.short}`} />
+        <BookingButton
+          label={`Agendar con ${barber.short}`}
+          barberId={barber.agendaId}
+        />
       </div>
 
       {lightbox && (

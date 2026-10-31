@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
+import { isGoogleOAuthConfigured } from "@/lib/session-cookie";
 
 export async function GET(request: Request) {
   const clientId = process.env.AUTH_GOOGLE_ID;
   const origin =
     process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
 
-  if (!clientId) {
+  if (!clientId || !isGoogleOAuthConfigured()) {
     return NextResponse.redirect(new URL("/?auth=missing_config", origin));
   }
 
@@ -26,7 +27,8 @@ export async function GET(request: Request) {
   response.cookies.set("cobre_oauth_state", state, {
     httpOnly: true,
     sameSite: "lax",
-    path: "/",
+    secure: process.env.NODE_ENV === "production",
+    path: "/api/auth/google",
     maxAge: 600,
   });
 

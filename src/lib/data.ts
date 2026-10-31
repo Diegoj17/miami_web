@@ -43,6 +43,8 @@ export interface Barber {
   quote: string;
   bio: string;
   image: string;
+  /** ID del profesional en miami_agenda (p. ej. "pro_andres"). Si falta, la reserva no lo preselecciona. */
+  agendaId?: string;
 }
 
 export const barbers: Barber[] = [
@@ -63,6 +65,7 @@ export const barbers: Barber[] = [
     quote: "“Un buen corte no cambia quién eres. Hace que se note.”",
     bio: "Especialista en fades precisos y diseños que se adaptan a la estructura del rostro. Mi trabajo empieza escuchando y termina cuando cada línea tiene intención.",
     image: photos.mateo,
+    agendaId: "pro_mateo",
   },
   {
     id: "lucas",
@@ -81,6 +84,7 @@ export const barbers: Barber[] = [
     quote: "“La tijera bien llevada respeta la caída natural de cada cabello.”",
     bio: "Formado en sastrería capilar clásica. Domina el corte íntegro a tijera, volúmenes controlados y perfilados de barba que envejecen con elegancia semana tras semana.",
     image: photos.lucas,
+    agendaId: "pro_lucas",
   },
   {
     id: "nico",
@@ -99,6 +103,7 @@ export const barbers: Barber[] = [
     quote: "“El movimiento y la textura logran que el peinado trabaje a tu favor.”",
     bio: "Referente en crops contemporáneos, tapers limpios y texturas dinámicas de bajo mantenimiento pensadas para verse impecables dentro y fuera del club.",
     image: photos.nico,
+    agendaId: "pro_nico",
   },
   {
     id: "marco",
@@ -117,6 +122,7 @@ export const barbers: Barber[] = [
     quote: "“La toalla caliente y la navaja son una pausa necesaria en la semana.”",
     bio: "Dedicado al ritual tradicional de barbería: compresas aromáticas a vapor, afeitado preciso a navaja libre e hidratación botánica para pieles exigentes.",
     image: photos.marco,
+    agendaId: "pro_marco",
   },
 ];
 
@@ -126,6 +132,8 @@ export interface ServiceItem {
   detail: string;
   duration: string;
   price: number;
+  /** ID del servicio en miami_agenda (p. ej. "svc_combo"). Si falta, la reserva no lo preselecciona. */
+  agendaId?: string;
 }
 
 export const services: ServiceItem[] = [

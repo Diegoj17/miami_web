@@ -2,7 +2,10 @@
 
 import { FormEvent, useState } from "react";
 import { photos, ScheduledAppointment } from "@/lib/data";
-import { lookupGuestAppointments } from "@/lib/storage";
+import {
+  guestLookupLockedMinutes,
+  lookupGuestAppointments,
+} from "@/lib/storage";
 import { GoogleLogo, Icon } from "./Icons";
 import { Button, Eyebrow } from "./UIPrimitives";
 
@@ -11,11 +14,14 @@ type AuthTab = "google" | "guest";
 export function LoginScreen({
   onBack,
   googleOAuthConfigured,
+  demoLoginAllowed,
   onGoogleLoginSuccess,
   onGuestLookupSuccess,
 }: {
   onBack: () => void;
   googleOAuthConfigured: boolean;
+  /** Selector de cuentas de demostración: solo en desarrollo y sin OAuth real. */
+  demoLoginAllowed: boolean;
   onGoogleLoginSuccess: (params: {
     email: string;
     name: string;
@@ -34,9 +40,11 @@ export function LoginScreen({
   const [customEmail, setCustomEmail] = useState("");
   const [customError, setCustomError] = useState("");
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const [googleError, setGoogleError] = useState("");
 
   // Guest lookup state
-  const [guestQuery, setGuestQuery] = useState("");
+  const [guestFolio, setGuestFolio] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
   const [guestError, setGuestError] = useState("");
 
   const handleGoogleClick = () => {
@@ -45,11 +53,18 @@ export function LoginScreen({
       window.location.href = "/api/auth/google";
       return;
     }
-    setShowGoogleChooser(true);
+    if (demoLoginAllowed) {
+      setShowGoogleChooser(true);
+      return;
+    }
+    setGoogleError(
+      "El acceso con Google no está disponible en este momento. Puedes consultar tu cita como invitado.",
+    );
   };
 
   const handleCustomGoogleSubmit = (e: FormEvent) => {
     e.preventDefault();
+    if (!demoLoginAllowed) return;
     setCustomError("");
     const cleanEmail = customEmail.trim().toLowerCase();
     const cleanName = customName.trim();
@@ -71,24 +86,35 @@ export function LoginScreen({
   const handleGuestSubmit = (e: FormEvent) => {
     e.preventDefault();
     setGuestError("");
-    if (!guestQuery.trim()) {
+    if (!guestFolio.trim() || !guestPhone.trim()) {
       setGuestError(
-        "Ingresa tu número de teléfono o el código de confirmación (ej. CB-8492).",
+        "Ingresa el código de tu cita (ej. CB-8492) y el teléfono de la reservación.",
       );
       return;
     }
 
-    const result = lookupGuestAppointments(guestQuery);
-    if (!result.found) {
+    const lockedBefore = guestLookupLockedMinutes();
+    if (lockedBefore > 0) {
       setGuestError(
-        "No encontramos citas programadas asociadas a ese teléfono o código. Prueba con CB-8492 o inicia sesión con Google.",
+        `Demasiados intentos. Vuelve a intentarlo en ${lockedBefore} min o inicia sesión con Google.`,
+      );
+      return;
+    }
+
+    const result = lookupGuestAppointments(guestFolio, guestPhone);
+    if (!result.found) {
+      const locked = guestLookupLockedMinutes();
+      setGuestError(
+        locked > 0
+          ? `Demasiados intentos. Vuelve a intentarlo en ${locked} min o inicia sesión con Google.`
+          : "No encontramos una cita con ese código y teléfono. Revisa los datos de tu confirmación.",
       );
       return;
     }
 
     onGuestLookupSuccess({
       guestName: result.guestName,
-      lookupQuery: guestQuery.trim(),
+      lookupQuery: guestFolio.trim().toUpperCase(),
       appointments: result.appointments,
     });
   };
@@ -181,6 +207,12 @@ export function LoginScreen({
                 </span>
               </button>
 
+              {googleError && (
+                <p className="login-message is-error" role="alert">
+                  {googleError}
+                </p>
+              )}
+
               <div className="login-security-badge">
                 <Icon name="shield" size={14} />
                 <span>
@@ -230,49 +262,57 @@ export function LoginScreen({
                 <em>como invitado.</em>
               </h1>
               <p className="login-intro">
-                Ingresa el teléfono registrado en tu reservación o tu código de
-                cita para consultar fecha, horario y barbero sin crear cuenta.
+                Ingresa el código de tu cita y el teléfono de la reservación para
+                consultar fecha, horario y barbero sin crear cuenta.
               </p>
 
               <form className="guest-lookup-form" onSubmit={handleGuestSubmit}>
-                <label htmlFor="guest-lookup-input">
-                  Teléfono o código de confirmación
-                </label>
+                <label htmlFor="guest-folio-input">Código de la cita</label>
                 <div className="guest-input-row">
                   <input
-                    id="guest-lookup-input"
+                    id="guest-folio-input"
                     type="text"
-                    value={guestQuery}
+                    value={guestFolio}
                     onChange={(e) => {
-                      setGuestQuery(e.target.value);
+                      setGuestFolio(e.target.value);
                       if (guestError) setGuestError("");
                     }}
-                    placeholder="Ej. CB-8492 o +52 55 4821 0934"
+                    placeholder="Ej. CB-8492"
+                    autoComplete="off"
+                    maxLength={12}
+                  />
+                </div>
+                <label htmlFor="guest-phone-input">Teléfono de la reservación</label>
+                <div className="guest-input-row">
+                  <input
+                    id="guest-phone-input"
+                    type="tel"
+                    value={guestPhone}
+                    onChange={(e) => {
+                      setGuestPhone(e.target.value);
+                      if (guestError) setGuestError("");
+                    }}
+                    placeholder="Ej. +52 55 4821 0934"
                     autoComplete="tel"
+                    maxLength={20}
                   />
                 </div>
 
-                <div className="guest-quick-demos">
-                  <small>Ejemplos rápidos:</small>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGuestQuery("CB-8492");
-                      setGuestError("");
-                    }}
-                  >
-                    Folio CB-8492
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setGuestQuery("+52 55 4821 0934");
-                      setGuestError("");
-                    }}
-                  >
-                    +52 55 4821 0934
-                  </button>
-                </div>
+                {demoLoginAllowed && (
+                  <div className="guest-quick-demos">
+                    <small>Ejemplo de demostración:</small>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGuestFolio("CB-8492");
+                        setGuestPhone("+52 55 4821 0934");
+                        setGuestError("");
+                      }}
+                    >
+                      CB-8492 · +52 55 4821 0934
+                    </button>
+                  </div>
+                )}
 
                 {guestError && (
                   <p className="login-message is-error" role="alert">
@@ -307,7 +347,7 @@ export function LoginScreen({
         </div>
       </section>
 
-      {showGoogleChooser && (
+      {demoLoginAllowed && showGoogleChooser && (
         <div
           className="modal-backdrop"
           role="dialog"
