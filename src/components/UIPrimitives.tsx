@@ -1,9 +1,5 @@
 import { ReactNode } from "react";
-import {
-  BOOKING_DISABLED_MESSAGE,
-  BOOKING_ENABLED,
-  EXTERNAL_BOOKING_URL,
-} from "@/lib/config";
+import { BOOKING_DISABLED_MESSAGE, buildBookingUrl } from "@/lib/config";
 import { Icon } from "./Icons";
 
 export function Button({
@@ -38,36 +34,54 @@ export function Button({
 
 /**
  * Botón de agendamiento centralizado.
- * Permanece deshabilitado de forma elegante mientras se conecta con el otro aplicativo.
+ * Con la agenda configurada (miami_agenda) es un enlace al flujo de reserva;
+ * si no, permanece deshabilitado de forma elegante.
  */
 export function BookingButton({
   label = "Agendar cita",
   variant = "primary",
   className = "",
   compact = false,
+  serviceId,
+  barberId,
 }: {
   label?: string;
   variant?: "primary" | "outline" | "ghost";
   className?: string;
   compact?: boolean;
+  /** ID del servicio en la agenda, para llegar con el servicio preseleccionado. */
+  serviceId?: string;
+  /** ID del barbero en la agenda, para llegar con el barbero preseleccionado. */
+  barberId?: string;
 }) {
-  const isEnabled = BOOKING_ENABLED && Boolean(EXTERNAL_BOOKING_URL);
+  const href = buildBookingUrl({ serviceId, barberId });
+
+  if (href) {
+    return (
+      <span className={`booking-disabled-wrap ${compact ? "is-compact" : ""}`}>
+        <a
+          href={href}
+          rel="noopener noreferrer"
+          referrerPolicy="no-referrer"
+          className={`btn btn-${variant} btn-booking-cta ${className}`}
+        >
+          <Icon name="calendar" size={14} />
+          <span>{label}</span>
+        </a>
+      </span>
+    );
+  }
 
   return (
     <span
       className={`booking-disabled-wrap ${compact ? "is-compact" : ""}`}
-      title={!isEnabled ? BOOKING_DISABLED_MESSAGE : undefined}
+      title={BOOKING_DISABLED_MESSAGE}
     >
       <button
         type="button"
-        disabled={!isEnabled}
-        aria-disabled={!isEnabled}
+        disabled
+        aria-disabled
         className={`btn btn-${variant} btn-booking-cta ${className}`}
-        onClick={() => {
-          if (isEnabled && EXTERNAL_BOOKING_URL) {
-            window.location.href = EXTERNAL_BOOKING_URL;
-          }
-        }}
       >
         <Icon name="lock" size={14} />
         <span>{label}</span>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CLUB_INFO } from "@/lib/config";
+import { BOOKING_ENABLED, CLUB_INFO } from "@/lib/config";
 import { barbers, photos, services, testimonials } from "@/lib/data";
 import { Icon } from "./Icons";
 import { BookingButton, Button } from "./UIPrimitives";
@@ -89,9 +89,11 @@ export function LandingScreen({
             </Button>
           </div>
           <p className="booking-integration-note">
-            <Icon name="info" size={14} /> El módulo para nuevas reservas se
-            habilitará al conectar nuestro aplicativo de agendamiento. ¿Ya
-            tienes cita? Consúltala desde tu cuenta o como invitado.
+            <Icon name="info" size={14} />{" "}
+            {BOOKING_ENABLED
+              ? "Reserva en línea en menos de un minuto."
+              : "El módulo para nuevas reservas se habilitará al conectar nuestro aplicativo de agendamiento."}{" "}
+            ¿Ya tienes cita? Consúltala desde tu cuenta o como invitado.
           </p>
         </div>
       </section>
@@ -211,6 +213,7 @@ export function LandingScreen({
                   <BookingButton
                     variant="ghost"
                     label={`Agendar con ${barber.short}`}
+                    barberId={barber.agendaId}
                     compact
                     className="barber-book-disabled"
                   />
@@ -253,6 +256,7 @@ export function LandingScreen({
                 <BookingButton
                   variant="ghost"
                   label="Agendar servicio"
+                  serviceId={service.agendaId}
                   compact
                   className="service-book-disabled"
                 />
@@ -402,94 +406,15 @@ export function LandingScreen({
                 );
               })}
             </div>
-            <div className="contact-block">
-              <h3>Hablemos</h3>
-              <div className="contact-actions">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    window.location.href = CLUB_INFO.phoneHref;
-                  }}
-                >
-                  <Icon name="phone" /> Llamar
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(CLUB_INFO.whatsappHref, "_blank")}
-                >
-                  <Icon name="message" /> WhatsApp
-                </Button>
-              </div>
-              <p>
-                {CLUB_INFO.phoneDisplay}
-                <br />
-                {CLUB_INFO.email}
-              </p>
-            </div>
-            <div className="social-row">
-              <span>Síguenos</span>
-              <div>
-                <a
-                  href="https://instagram.com"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Instagram
-                </a>
-                <a
-                  href="https://facebook.com"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Facebook
-                </a>
-                <a href="https://tiktok.com" target="_blank" rel="noreferrer">
-                  TikTok
-                </a>
-              </div>
-            </div>
             <div className="useful-info">
               <div>
                 <strong>Pagos</strong>
                 <span>Efectivo · Tarjeta · Transferencia</span>
               </div>
-              <div>
-                <strong>Tu visita</strong>
-                <span>
-                  Acceso a nivel de calle · Pet friendly · Atendemos con cita y
-                  según disponibilidad
-                </span>
-              </div>
-              <div>
-                <strong>Estacionamiento</strong>
-                <span>Pensión pública a 80 metros, sobre Orizaba</span>
-              </div>
             </div>
           </div>
         </div>
       </section>
-
-      <section className="landing-cta">
-        <div className="page-shell">
-          <span>Tu lugar ya está listo</span>
-          <h2>
-            Haz una pausa.
-            <br />
-            Nosotros hacemos el resto.
-          </h2>
-          <div className="cta-actions-stack">
-            <BookingButton label="Agendar cita" />
-            <Button variant="outline" onClick={onOpenAccount}>
-              <Icon name="user" size={16} />{" "}
-              {hasSession ? "Ir a mi espacio Cobre" : "Acceso de clientes"}
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      <div className="mobile-book">
-        <BookingButton label="Agendar cita" compact />
-      </div>
 
       {lightboxPhoto && (
         <div

@@ -1,6 +1,17 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { signGoogleSessionCookie } from "@/lib/session-cookie";
+import {
+  getAuthSecret,
+  SESSION_MAX_AGE_SECONDS,
+  signGoogleSessionCookie,
+} from "@/lib/session-cookie";
+
+/** Redirige con un código de error y descarta el `state` de un solo uso. */
+function fail(reason: string, origin: string) {
+  const response = NextResponse.redirect(new URL(`/?auth=${reason}`, origin));
+  response.cookies.delete({ name: "cobre_oauth_state", path: "/api/auth/google" });
+  return response;
+}
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -10,7 +21,7 @@ export async function GET(request: Request) {
 
   const clientId = process.env.AUTH_GOOGLE_ID;
   const clientSecret = process.env.AUTH_GOOGLE_SECRET;
-  const authSecret = process.env.AUTH_SECRET;
+  const authSecret = getAuthSecret();
 
   const cookieStore = await cookies();
   const savedState = cookieStore.get("cobre_oauth_state")?.value;
@@ -23,7 +34,7 @@ export async function GET(request: Request) {
     !state ||
     state !== savedState
   ) {
-    return NextResponse.redirect(new URL("/?auth=oauth_error", origin));
+    return fail("oauth_error", origin);
   }
 
   try {
@@ -40,12 +51,12 @@ export async function GET(request: Request) {
     });
 
     if (!tokenRes.ok) {
-      return NextResponse.redirect(new URL("/?auth=token_error", origin));
+      return fail("token_error", origin);
     }
 
     const tokenJson = (await tokenRes.json()) as { access_token?: string };
     if (!tokenJson.access_token) {
-      return NextResponse.redirect(new URL("/?auth=no_token", origin));
+      return fail("no_token", origin);
     }
 
     const userRes = await fetch(
@@ -56,17 +67,19 @@ export async function GET(request: Request) {
     );
 
     if (!userRes.ok) {
-      return NextResponse.redirect(new URL("/?auth=userinfo_error", origin));
+      return fail("userinfo_error", origin);
     }
 
     const userInfo = (await userRes.json()) as {
       email?: string;
+      email_verified?: boolean;
       name?: string;
       picture?: string;
     };
 
-    if (!userInfo.email) {
-      return NextResponse.redirect(new URL("/?auth=missing_email", origin));
+    // Solo correos que Google confirma como verificados.
+    if (!userInfo.email || userInfo.email_verified !== true) {
+      return fail("missing_email", origin);
     }
 
     const signedValue = signGoogleSessionCookie(
@@ -79,17 +92,17 @@ export async function GET(request: Request) {
     );
 
     const response = NextResponse.redirect(new URL("/", origin));
-    response.cookies.delete("cobre_oauth_state");
+    response.cookies.delete({ name: "cobre_oauth_state", path: "/api/auth/google" });
     response.cookies.set("cobre_google_user", signedValue, {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
-      maxAge: 60 * 60 * 24 * 30,
+      maxAge: SESSION_MAX_AGE_SECONDS,
     });
 
     return response;
   } catch {
-    return NextResponse.redirect(new URL("/?auth=server_error", origin));
+    return fail("server_error", origin);
   }
 }

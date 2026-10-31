@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { CLUB_INFO, PHONE_COOLDOWN_DAYS } from "@/lib/config";
+import { BOOKING_ENABLED, CLUB_INFO, PHONE_COOLDOWN_DAYS } from "@/lib/config";
 import {
   AppointmentRating,
   barbers,
@@ -19,46 +19,8 @@ import {
   validatePhoneInput,
 } from "@/lib/phone-policy";
 import { PortalTab } from "./Header";
-import { GoogleLogo, Icon } from "./Icons";
+import { GoogleLogo, Icon, WhatsAppLogo } from "./Icons";
 import { BookingButton, Button, Eyebrow } from "./UIPrimitives";
-
-function downloadCalendarIcs(apt: ScheduledAppointment) {
-  const start = new Date(apt.isoDate);
-  const durationMinutes = parseInt(apt.duration, 10) || 50;
-  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
-
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const toIcsDate = (d: Date) =>
-    `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(
-      d.getUTCHours(),
-    )}${pad(d.getUTCMinutes())}00Z`;
-
-  const ics = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//Cobre Barber Club//Citas//ES",
-    "BEGIN:VEVENT",
-    `UID:${apt.folio}@cobrebarberclub.mx`,
-    `DTSTAMP:${toIcsDate(new Date())}`,
-    `DTSTART:${toIcsDate(start)}`,
-    `DTEND:${toIcsDate(end)}`,
-    `SUMMARY:${apt.serviceName} con ${apt.barberName} · Cobre Barber Club`,
-    `LOCATION:${CLUB_INFO.addressLine1}, ${CLUB_INFO.addressLine2}`,
-    `DESCRIPTION:Folio ${apt.folio}. Servicio: ${apt.serviceName}. Barbero: ${apt.barberName}.`,
-    "END:VEVENT",
-    "END:VCALENDAR",
-  ].join("\r\n");
-
-  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `cita-${apt.folio.toLowerCase()}.ics`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
 
 export function GuestPortalScreen({
   guestName,
@@ -246,9 +208,6 @@ function ScheduledCard({ apt }: { apt: ScheduledAppointment }) {
       )}
 
       <div className="scheduled-actions">
-        <Button variant="outline" onClick={() => downloadCalendarIcs(apt)}>
-          <Icon name="calendar" size={15} /> Añadir al calendario
-        </Button>
         <Button
           variant="outline"
           onClick={() => window.open(CLUB_INFO.mapsExternalUrl, "_blank")}
@@ -259,7 +218,7 @@ function ScheduledCard({ apt }: { apt: ScheduledAppointment }) {
           variant="ghost"
           onClick={() => window.open(whatsappUrl, "_blank")}
         >
-          <Icon name="message" size={15} /> Dudas por WhatsApp
+          <WhatsAppLogo size={15} /> Dudas por WhatsApp
         </Button>
       </div>
     </article>
@@ -372,7 +331,11 @@ export function ClientPortal({
           </div>
           <div className="portal-booking-slot">
             <BookingButton label="Nueva cita" />
-            <small>Integración con sistema de turnos en curso</small>
+            <small>
+              {BOOKING_ENABLED
+                ? "Reserva en línea al instante"
+                : "Integración con sistema de turnos en curso"}
+            </small>
           </div>
         </div>
 
@@ -437,8 +400,9 @@ export function ClientPortal({
               <Icon name="calendar" size={28} />
               <h3>No tienes citas programadas en este momento</h3>
               <p>
-                Muy pronto podrás reservar directamente desde aquí cuando
-                finalice la conexión con nuestro sistema de citas.
+                {BOOKING_ENABLED
+                  ? "Reserva tu próxima visita en línea en menos de un minuto."
+                  : "Muy pronto podrás reservar directamente desde aquí cuando finalice la conexión con nuestro sistema de citas."}
               </p>
               <BookingButton label="Agendar cita" />
             </div>
@@ -965,6 +929,7 @@ function ProfileAndPhoneSection({
                 checked={whatsappReminders}
                 onChange={(e) => setWhatsappReminders(e.target.checked)}
               />
+              <WhatsAppLogo size={15} />
               <span>Recibir recordatorio de cita por WhatsApp (24 h antes)</span>
             </label>
             <label className="checkbox-row">
