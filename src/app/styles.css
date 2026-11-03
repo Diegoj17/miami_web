@@ -3844,6 +3844,206 @@ img {
 }
 
 /* =========================================================
+   COOKIES: aviso, mapa sin consentimiento y política
+   ========================================================= */
+.cookie-notice {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 200;
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+  margin-inline: auto;
+  padding: 20px;
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  color: var(--bone);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.cookie-notice-copy strong {
+  display: block;
+  margin-bottom: 6px;
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--bronze-light);
+}
+
+.cookie-notice-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.cookie-notice a,
+.cookie-policy a {
+  color: var(--bronze-light);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.cookie-notice-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cookie-notice-actions .btn {
+  min-height: 44px;
+  padding-inline: 12px;
+}
+
+.map-consent {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px 24px 90px;
+  text-align: center;
+  color: var(--muted);
+  background: var(--ink-soft);
+}
+
+.map-consent > svg {
+  color: var(--bronze-light);
+}
+
+.map-consent p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.map-wrap .map-consent .btn {
+  position: static;
+}
+
+.footer-cookie-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.footer-cookie-links a,
+.footer-cookie-links button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.footer-cookie-links a:hover,
+.footer-cookie-links button:hover {
+  color: var(--bronze-light);
+}
+
+.site-footer .footer-cookie-links {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.cookie-policy {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 56px 16px 140px;
+  color: var(--bone);
+}
+
+.cookie-policy h1 {
+  font-family: var(--serif);
+  font-size: clamp(40px, 8vw, 60px);
+  font-weight: 500;
+  margin: 12px 0 18px;
+}
+
+.cookie-policy h1 em {
+  color: var(--bronze-light);
+}
+
+.cookie-policy h2 {
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 500;
+  margin: 36px 0 12px;
+}
+
+.cookie-policy p,
+.cookie-policy li {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.cookie-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+}
+
+.cookie-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.cookie-table th,
+.cookie-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  text-align: left;
+  vertical-align: top;
+}
+
+.cookie-table th {
+  color: var(--bronze-light);
+  font-weight: 500;
+  background: var(--surface);
+}
+
+.cookie-table td {
+  color: var(--muted);
+}
+
+.cookie-table code {
+  color: var(--bone);
+  word-break: break-all;
+}
+
+.cookie-policy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 36px;
+}
+
+@media (min-width: 700px) {
+  .cookie-notice {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 24px;
+    padding: 22px 26px;
+  }
+
+  .cookie-notice-actions {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+  }
+}
+
+/* =========================================================
    RESPONSIVE BREAKPOINTS
    ========================================================= */
 @media (min-width: 700px) {

@@ -59,6 +59,8 @@ export default function nextConfig(phase) {
     distDir: isDev ? ".next-dev" : ".next",
     reactStrictMode: true,
     poweredByHeader: false,
+    // Django exige la barra final (`/api/public/catalog/`): no se redirige sin ella.
+    skipTrailingSlashRedirect: true,
     images: {
       remotePatterns: [
         {
@@ -73,6 +75,18 @@ export default function nextConfig(phase) {
     },
     async headers() {
       return [{ source: "/:path*", headers: securityHeaders(isDev) }];
+    },
+    /**
+     * Con backend, `/api/` se reenvía a él desde este mismo dominio. Así su cookie
+     * de sesión (HttpOnly, SameSite=Lax, path /api/) queda en el sitio de la landing
+     * y el navegador la envía: entre dominios distintos (p. ej. vercel.app y
+     * railway.app) los navegadores no mandan esa cookie y el login no se mantiene.
+     * Va antes que las rutas propias de /api, que solo se usan sin backend.
+     */
+    async rewrites() {
+      const api = backendOrigin();
+      if (!api) return [];
+      return { beforeFiles: [{ source: "/api/:path*", destination: `${api}/api/:path*/` }] };
     },
   };
 

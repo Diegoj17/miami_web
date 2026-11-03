@@ -1,6 +1,7 @@
 "use client";
 
 import { CLUB_INFO } from "@/lib/config";
+import { openCookieSettings } from "@/lib/cookie-consent";
 import { Screen } from "./Header";
 import {
   FacebookLogo,
@@ -83,6 +84,7 @@ export function Footer({
 
             <div className="footer-legal">
               <span>© 2026 Cobre Barber Club. Todos los derechos reservados.</span>
+              <CookieLinks />
             </div>
           </div>
         </footer>
@@ -97,8 +99,20 @@ export function Footer({
         <span>CB</span>
         <p>Cobre Barber Club · Oficio desde 2016</p>
         <small>Roma Norte · Ciudad de México</small>
+        <CookieLinks />
       </footer>
     </>
+  );
+}
+
+function CookieLinks() {
+  return (
+    <nav className="footer-cookie-links" aria-label="Cookies">
+      <a href="/cookies">Política de cookies</a>
+      <button type="button" onClick={openCookieSettings}>
+        Configurar cookies
+      </button>
+    </nav>
   );
 }
 

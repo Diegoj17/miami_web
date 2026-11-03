@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { backendGoogleLoginUrl, backendSessionEnabled } from "@/lib/client-session";
 import { photos } from "@/lib/data";
 import { GoogleLogo, Icon } from "./Icons";
 import { Button, Eyebrow } from "./UIPrimitives";
+
+/** Con backend, Google se inicia en él (por el mismo dominio); si no, en la ruta propia de la landing. */
+const GOOGLE_LOGIN_HREF = backendSessionEnabled ? backendGoogleLoginUrl("/") : "/api/auth/google";
 
 export function LoginScreen({
   onBack,
@@ -56,7 +60,7 @@ export function LoginScreen({
     if (googleOAuthConfigured) {
       setIsConnectingGoogle(true);
       redirectTimerRef.current = setTimeout(() => {
-        window.location.assign("/api/auth/google");
+        window.location.assign(GOOGLE_LOGIN_HREF);
       }, 1600);
       return;
     }
@@ -149,7 +153,7 @@ export function LoginScreen({
 
               <p className="google-redirect-subhint">
                 ¿Prefieres no esperar?{" "}
-                <a href="/api/auth/google" className="google-redirect-link">
+                <a href={GOOGLE_LOGIN_HREF} className="google-redirect-link">
                   Ir a Google ahora
                 </a>
               </p>

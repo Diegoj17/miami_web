@@ -5,7 +5,8 @@ import { BUSINESS_TIME_ZONE } from "./format";
 /**
  * Citas de la landing contra el backend de la agenda: la misma fuente que usa
  * miami_agenda, así ambas apps ven exactamente las mismas citas.
- * - La sesión del cliente viaja en la cookie HttpOnly del backend (credentials: "include").
+ * - La sesión del cliente viaja en la cookie HttpOnly del backend, que es de este mismo
+ *   dominio: `/api/` se reenvía al backend (ver `rewrites` en next.config.mjs).
  * - Cada respuesta se valida antes de usarla; nada se guarda en el navegador.
  */
 
@@ -96,7 +97,7 @@ const SAFE_ID = /^[A-Za-z0-9_-]{1,96}$/;
 const STATUSES = new Set(["pending", "confirmed", "completed", "no_show", "cancelled"]);
 
 function apiUrl(path: string, params: Record<string, string | string[] | undefined> = {}) {
-  const url = new URL(`/api/public/${path}`, BACKEND_API_ORIGIN ?? "http://invalid");
+  const url = new URL(`/api/public/${path}`, window.location.origin);
   if (BOOKING_BUSINESS_SLUG && SAFE_ID.test(BOOKING_BUSINESS_SLUG)) {
     url.searchParams.set("negocio", BOOKING_BUSINESS_SLUG);
   }
@@ -118,7 +119,7 @@ async function request<T>(
   try {
     res = await fetch(apiUrl(path, options.params), {
       method: options.method ?? "GET",
-      credentials: "include",
+      credentials: "same-origin",
       cache: "no-store",
       headers: {
         Accept: "application/json",

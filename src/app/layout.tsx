@@ -1,5 +1,6 @@
 import React from "react";
 import type { Metadata } from "next";
+import { CookieNotice } from "@/components/CookieNotice";
 import "./styles.css";
 
 export const metadata: Metadata = {
@@ -34,6 +35,7 @@ export default function RootLayout({
         <div id="root" tabIndex={-1}>
           {children}
         </div>
+        <CookieNotice />
       </body>
     </html>
   );

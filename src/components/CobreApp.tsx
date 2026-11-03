@@ -185,13 +185,16 @@ export default function CobreApp({
     setCurrentUser(null);
     setScreen("landing");
     window.scrollTo({ top: 0, behavior: "smooth" });
+    if (backendSessionEnabled) {
+      // Cierra la sesión compartida: también queda cerrada en la agenda.
+      await backendLogout();
+      return;
+    }
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch {
       // Ignore network error if no server cookie
     }
-    // Cierra la sesión compartida: también queda cerrada en la agenda.
-    await backendLogout();
   };
 
   const unratedCount = useMemo(() => {

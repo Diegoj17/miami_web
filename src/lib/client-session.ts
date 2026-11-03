@@ -3,7 +3,9 @@ import { BACKEND_API_ORIGIN } from "./config";
 /**
  * Sesión del cliente compartida con la agenda: la cookie HttpOnly la pone y la
  * valida el backend. La landing nunca ve el token; solo pregunta quién es el
- * cliente, con `credentials: "include"` y sin guardar nada en el navegador.
+ * cliente y sin guardar nada en el navegador.
+ * Las rutas son relativas: `/api/` se reenvía al backend desde este mismo dominio
+ * (ver `rewrites` en next.config.mjs), así la cookie es de la propia landing.
  */
 export interface BackendClient {
   email: string;
@@ -13,16 +15,9 @@ export interface BackendClient {
 
 export const backendSessionEnabled = Boolean(BACKEND_API_ORIGIN);
 
-function apiUrl(path: string): string {
-  return new URL(path, BACKEND_API_ORIGIN ?? "http://invalid").toString();
-}
-
-/** URL de inicio con Google en el backend; al terminar vuelve a esta landing (`next`). */
+/** Ruta de inicio con Google en el backend; al terminar vuelve a esta landing (`next`). */
 export function backendGoogleLoginUrl(next = "/"): string {
-  const url = new URL(apiUrl("/api/auth/google/start/"));
-  url.searchParams.set("app", "landing");
-  url.searchParams.set("next", next);
-  return url.toString();
+  return `/api/auth/google/start/?${new URLSearchParams({ app: "landing", next })}`;
 }
 
 function safeAvatar(value: unknown): string | undefined {
@@ -38,8 +33,8 @@ function safeAvatar(value: unknown): string | undefined {
 export async function fetchBackendClient(): Promise<BackendClient | null> {
   if (!backendSessionEnabled) return null;
   try {
-    const res = await fetch(apiUrl("/api/auth/client/session/"), {
-      credentials: "include",
+    const res = await fetch("/api/auth/client/session/", {
+      credentials: "same-origin",
       cache: "no-store",
       headers: { Accept: "application/json" },
     });
@@ -64,9 +59,9 @@ export async function fetchBackendClient(): Promise<BackendClient | null> {
 export async function backendLogout(): Promise<void> {
   if (!backendSessionEnabled) return;
   try {
-    await fetch(apiUrl("/api/auth/client/logout/"), {
+    await fetch("/api/auth/client/logout/", {
       method: "POST",
-      credentials: "include",
+      credentials: "same-origin",
       headers: { Accept: "application/json" },
     });
   } catch {

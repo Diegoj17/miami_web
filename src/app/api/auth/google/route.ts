@@ -5,7 +5,7 @@ import { isGoogleOAuthConfigured } from "@/lib/session-cookie";
 export async function GET(request: Request) {
   // Una sola identidad: con el backend configurado, el login de Google es el suyo.
   if (backendSessionEnabled) {
-    return NextResponse.redirect(backendGoogleLoginUrl("/"));
+    return NextResponse.redirect(new URL(backendGoogleLoginUrl("/"), request.url));
   }
   const clientId = process.env.AUTH_GOOGLE_ID;
   const configuredOrigin = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");

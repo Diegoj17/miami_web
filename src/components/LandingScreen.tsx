@@ -5,6 +5,8 @@ import { BOOKING_ENABLED, CLUB_INFO } from "@/lib/config";
 import { bogotaWeekday, formatCOP } from "@/lib/format";
 import { agendaApiEnabled, getCatalog } from "@/lib/agenda-api";
 import { barbers, photos, services as staticServices, testimonials, type ServiceItem } from "@/lib/data";
+import { saveConsent } from "@/lib/cookie-consent";
+import { useCookieConsent } from "./CookieNotice";
 import { Icon } from "./Icons";
 import { BookingButton, Button } from "./UIPrimitives";
 
@@ -22,6 +24,8 @@ export function LandingScreen({
   // Con el backend, los servicios son los mismos de la agenda (IDs, precios y duraciones reales),
   // así "Agendar servicio" abre la agenda con ese servicio ya elegido.
   const [services, setServices] = useState<ServiceItem[]>(staticServices);
+  // El mapa incrustado pone cookies de Google: solo se carga si se aceptaron todas.
+  const mapAllowed = useCookieConsent() === "all";
 
   useEffect(() => {
     setTodayJsDay(bogotaWeekday());
@@ -396,12 +400,26 @@ export function LandingScreen({
         </div>
         <div className="location-layout">
           <div className="map-wrap">
-            <iframe
-              title="Mapa de Cobre Barber Club"
-              src={CLUB_INFO.mapsEmbedUrl}
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-            />
+            {mapAllowed ? (
+              <iframe
+                title="Mapa de Cobre Barber Club"
+                src={CLUB_INFO.mapsEmbedUrl}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
+            ) : (
+              <div className="map-consent">
+                <Icon name="pin" />
+                <p>El mapa de Google Maps usa cookies de Google.</p>
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => saveConsent("all")}
+                >
+                  Aceptar cookies y ver el mapa
+                </button>
+              </div>
+            )}
             <Button
               onClick={() => window.open(CLUB_INFO.mapsExternalUrl, "_blank")}
             >
