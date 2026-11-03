@@ -85,7 +85,7 @@ export function LandingScreen({
               <Icon name="user" size={16} />
               {hasSession
                 ? "Ver mis citas y perfil"
-                : "Consultar mis citas / Acceso"}
+                : "Iniciar sesión con Google"}
               <Icon name="arrow" size={16} />
             </Button>
           </div>
@@ -94,7 +94,7 @@ export function LandingScreen({
             {BOOKING_ENABLED
               ? "Reserva en línea en menos de un minuto."
               : "El módulo para nuevas reservas se habilitará al conectar nuestro aplicativo de agendamiento."}{" "}
-            ¿Ya tienes cita? Consúltala desde tu cuenta o como invitado.
+            Inicia sesión con Google para ver tus citas programadas, calificar visitas y gestionar tu perfil.
           </p>
         </div>
       </section>

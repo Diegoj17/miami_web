@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppointmentRating, barbers, UserProfileData } from "@/lib/data";
 import {
   ActiveSession,
+  addScheduledAppointment,
   commitPhoneChangeWithCooldown,
   getOrCreateGoogleUser,
   loadAccountsStore,
@@ -12,7 +13,13 @@ import {
   saveAppointmentRating,
   updateProfilePreferences,
 } from "@/lib/storage";
-import { ClientPortal, GuestPortalScreen } from "./ClientPortal";
+import {
+  backendLogout,
+  backendSessionEnabled,
+  fetchBackendClient,
+} from "@/lib/client-session";
+import { BookingScreen } from "./BookingScreen";
+import { ClientPortal } from "./ClientPortal";
 import { Footer } from "./Footer";
 import { Header, PortalTab, Screen } from "./Header";
 import { LandingScreen } from "./LandingScreen";
@@ -38,6 +45,8 @@ export default function CobreApp({
   const [screen, setScreen] = useState<Screen>("landing");
   const [portalTab, setPortalTab] = useState<PortalTab>("scheduled");
   const [portfolioBarberIndex, setPortfolioBarberIndex] = useState<number>(0);
+  const [bookingBarberIndex, setBookingBarberIndex] = useState<number>(0);
+  const [bookingServiceId, setBookingServiceId] = useState<string>("signature");
 
   const [session, setSession] = useState<ActiveSession>(null);
   const [currentUser, setCurrentUser] = useState<UserProfileData | null>(null);
@@ -56,8 +65,46 @@ export default function CobreApp({
     }
   }, []);
 
+  // Sesión compartida con la agenda: la valida el backend con su cookie HttpOnly.
+  // Nada de la identidad se guarda en el navegador; se pregunta en cada carga.
+  useEffect(() => {
+    if (!backendSessionEnabled) return;
+    let cancelled = false;
+    const params = new URLSearchParams(window.location.search);
+    const googleResult = params.get("google");
+    if (googleResult) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+    void fetchBackendClient().then((client) => {
+      if (cancelled) return;
+      if (client) {
+        const profile = getOrCreateGoogleUser(client);
+        setSession({ mode: "google", email: profile.email });
+        setCurrentUser(profile);
+        if (googleResult === "ok") setScreen("portal");
+      } else {
+        // Sin sesión en el backend no hay sesión de Google en la landing.
+        const saved = loadActiveSession();
+        if (saved?.mode === "google") saveActiveSession(null);
+        setSession(null);
+        setCurrentUser(null);
+        if (googleResult === "error") {
+          setAuthErrorReason("oauth_error");
+          setScreen("login");
+        }
+      }
+      setHydrated(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Hydrate persisted client session or real Google OAuth server cookie
   useEffect(() => {
+    if (backendSessionEnabled) {
+      return;
+    }
     if (serverGoogleUser?.email) {
       const profile = getOrCreateGoogleUser({
         email: serverGoogleUser.email,
@@ -90,8 +137,6 @@ export default function CobreApp({
       } else {
         saveActiveSession(null);
       }
-    } else if (savedSession?.mode === "guest") {
-      setSession(savedSession);
     }
 
     setHydrated(true);
@@ -112,11 +157,7 @@ export default function CobreApp({
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    if (session.mode === "guest") {
-      setPortalTab("scheduled");
-    } else {
-      setPortalTab(tab);
-    }
+    setPortalTab(tab);
     setScreen("portal");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -126,7 +167,8 @@ export default function CobreApp({
     name: string;
     avatarUrl?: string;
   }) => {
-    if (!demoLoginAllowed) return;
+    // Con el backend, solo Google (vía servidor) puede iniciar la sesión.
+    if (!demoLoginAllowed || backendSessionEnabled) return;
     const profile = getOrCreateGoogleUser(params);
     const nextSession: ActiveSession = {
       mode: "google",
@@ -151,6 +193,8 @@ export default function CobreApp({
     } catch {
       // Ignore network error if no server cookie
     }
+    // Cierra la sesión compartida: también queda cerrada en la agenda.
+    await backendLogout();
   };
 
   const unratedCount = useMemo(() => {
@@ -169,13 +213,7 @@ export default function CobreApp({
           navigate={navigate}
           openPortalTab={openPortalTab}
           sessionMode={sessionMode}
-          userName={
-            session?.mode === "google"
-              ? currentUser?.name
-              : session?.mode === "guest"
-                ? session.guestName
-                : undefined
-          }
+          userName={session?.mode === "google" ? currentUser?.name : undefined}
           unratedCount={unratedCount}
         />
       )}
@@ -204,6 +242,25 @@ export default function CobreApp({
         />
       )}
 
+      {screen === "booking" && (
+        <BookingScreen
+          initialBarberIndex={bookingBarberIndex}
+          initialServiceId={bookingServiceId}
+          currentUser={currentUser}
+          onBack={() => navigate("landing")}
+          onAppointmentCreated={(newApt) => {
+            if (currentUser?.email) {
+              addScheduledAppointment(currentUser.email, newApt);
+              const store = loadAccountsStore();
+              const updated = store[currentUser.email.toLowerCase()];
+              if (updated) setCurrentUser(updated);
+            }
+          }}
+          onNavigateHome={() => navigate("landing")}
+          onNavigatePortal={() => openPortalTab("scheduled")}
+        />
+      )}
+
       {screen === "login" && (
         <LoginScreen
           onBack={() => navigate("landing")}
@@ -211,33 +268,11 @@ export default function CobreApp({
           demoLoginAllowed={demoLoginAllowed}
           authErrorReason={authErrorReason}
           onGoogleLoginSuccess={handleGoogleLoginSuccess}
-          onGuestLookupSuccess={({ guestName, lookupQuery, appointments }) => {
-            const guestSession: ActiveSession = {
-              mode: "guest",
-              guestName,
-              lookupQuery,
-              matchedAppointments: appointments,
-            };
-            saveActiveSession(guestSession);
-            setSession(guestSession);
-            setCurrentUser(null);
-            setPortalTab("scheduled");
-            setScreen("portal");
+          onStartBookingAsGuest={() => {
+            setBookingBarberIndex(0);
+            setBookingServiceId("signature");
+            setScreen("booking");
             window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-        />
-      )}
-
-      {screen === "portal" && session?.mode === "guest" && (
-        <GuestPortalScreen
-          guestName={session.guestName}
-          lookupQuery={session.lookupQuery}
-          appointments={session.matchedAppointments}
-          onSwitchToGoogleLogin={() => navigate("login")}
-          onExitGuest={() => {
-            saveActiveSession(null);
-            setSession(null);
-            navigate("login");
           }}
         />
       )}

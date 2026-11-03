@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Icon } from "./Icons";
 import { BookingButton } from "./UIPrimitives";
 
-export type Screen = "landing" | "portfolio" | "portal" | "login";
+export type Screen = "landing" | "portfolio" | "portal" | "login" | "booking";
 export type PortalTab = "scheduled" | "history" | "profile";
 
 export function Header({
@@ -20,7 +20,7 @@ export function Header({
   portalTab: PortalTab;
   navigate: (screen: Screen) => void;
   openPortalTab: (tab: PortalTab) => void;
-  sessionMode: "google" | "guest" | null;
+  sessionMode: "google" | null;
   userName?: string;
   unratedCount: number;
 }) {
@@ -163,26 +163,14 @@ export function Header({
             navigate("login");
           }
         }}
-        aria-label={
-          sessionMode === "google"
-            ? "Ir a mi cuenta"
-            : sessionMode === "guest"
-              ? "Ver consulta de invitado"
-              : "Iniciar sesión"
-        }
+        aria-label={sessionMode === "google" ? "Ir a mi cuenta" : "Iniciar sesión"}
       >
         {sessionMode === "google" && firstName ? (
           <span className="profile-avatar-chip">{firstName.charAt(0)}</span>
         ) : (
           <Icon name="user" size={16} />
         )}
-        <span>
-          {sessionMode === "google"
-            ? firstName || "Mi cuenta"
-            : sessionMode === "guest"
-              ? "Invitado"
-              : "Iniciar sesión"}
-        </span>
+        <span>{sessionMode === "google" ? firstName || "Mi cuenta" : "Iniciar sesión"}</span>
       </button>
 
       <button

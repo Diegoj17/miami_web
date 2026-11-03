@@ -15,12 +15,6 @@ export type ActiveSession =
       mode: "google";
       email: string;
     }
-  | {
-      mode: "guest";
-      guestName: string;
-      lookupQuery: string;
-      matchedAppointments: ScheduledAppointment[];
-    }
   | null;
 
 export function loadAccountsStore(): Record<string, UserProfileData> {
@@ -128,7 +122,8 @@ export function getOrCreateGoogleUser(params: {
         total: 45000,
         status: "Confirmada",
         daysAwayLabel: "Próxima cita confirmada",
-        clientNotes: "Diagnóstico personalizado en primera sesión con cuenta vinculada.",
+        clientNotes:
+          "Diagnóstico personalizado en primera sesión con cuenta vinculada.",
         guestPhoneNormalized: "525534108821",
       },
     ],
@@ -208,6 +203,25 @@ export function updateProfilePreferences(
   return updated;
 }
 
+export function addScheduledAppointment(
+  email: string,
+  appointment: ScheduledAppointment,
+): UserProfileData | null {
+  const key = email.trim().toLowerCase();
+  const store = loadAccountsStore();
+  const account = store[key];
+  if (!account) return null;
+
+  const updated: UserProfileData = {
+    ...account,
+    scheduledAppointments: [appointment, ...account.scheduledAppointments],
+  };
+
+  store[key] = updated;
+  saveAccountsStore(store);
+  return updated;
+}
+
 export function commitPhoneChangeWithCooldown(
   email: string,
   newFormattedPhone: string,
@@ -240,88 +254,4 @@ export function commitPhoneChangeWithCooldown(
   store[key] = updated;
   saveAccountsStore(store);
   return updated;
-}
-
-const GUEST_LOCK_KEY = "cobre_guest_lookup_lock_v1";
-const GUEST_MAX_ATTEMPTS = 5;
-const GUEST_LOCK_MS = 5 * 60 * 1000;
-
-/** Minutos que faltan para volver a intentar la consulta de invitado (0 = sin bloqueo). */
-export function guestLookupLockedMinutes(): number {
-  if (typeof window === "undefined") return 0;
-  try {
-    const raw = window.sessionStorage.getItem(GUEST_LOCK_KEY);
-    const state = raw ? (JSON.parse(raw) as { until?: number }) : null;
-    const left = (state?.until ?? 0) - Date.now();
-    return left > 0 ? Math.ceil(left / 60000) : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function registerGuestLookupResult(success: boolean): void {
-  if (typeof window === "undefined") return;
-  try {
-    if (success) {
-      window.sessionStorage.removeItem(GUEST_LOCK_KEY);
-      return;
-    }
-    const raw = window.sessionStorage.getItem(GUEST_LOCK_KEY);
-    const state = raw
-      ? (JSON.parse(raw) as { fails?: number; until?: number })
-      : {};
-    const fails = (state.fails ?? 0) + 1;
-    window.sessionStorage.setItem(
-      GUEST_LOCK_KEY,
-      JSON.stringify(
-        fails >= GUEST_MAX_ATTEMPTS
-          ? { fails: 0, until: Date.now() + GUEST_LOCK_MS }
-          : { fails },
-      ),
-    );
-  } catch {
-    // Sin almacenamiento de sesión: no se puede llevar la cuenta.
-  }
-}
-
-/**
- * Consulta de invitado: exige el folio Y el teléfono de la reservación,
- * y solo devuelve esa cita. Un folio o un teléfono por separado no basta.
- */
-export function lookupGuestAppointments(
-  folio: string,
-  phone: string,
-): {
-  found: boolean;
-  guestName: string;
-  appointments: ScheduledAppointment[];
-} {
-  const notFound = { found: false, guestName: "", appointments: [] };
-  if (guestLookupLockedMinutes() > 0) return notFound;
-
-  const wantedFolio = folio.trim().toUpperCase();
-  const digits = normalizeDigits(phone);
-  if (!/^CB-\d{4}$/.test(wantedFolio) || digits.length < 10) {
-    registerGuestLookupResult(false);
-    return notFound;
-  }
-
-  for (const account of Object.values(loadAccountsStore())) {
-    const accountDigits = normalizeDigits(account.phone);
-    const phoneMatches = accountDigits.slice(-10) === digits.slice(-10);
-    const appointment = account.scheduledAppointments.find(
-      (apt) => apt.folio.toUpperCase() === wantedFolio,
-    );
-    if (appointment && phoneMatches) {
-      registerGuestLookupResult(true);
-      return {
-        found: true,
-        guestName: account.name,
-        appointments: [appointment],
-      };
-    }
-  }
-
-  registerGuestLookupResult(false);
-  return notFound;
 }

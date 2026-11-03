@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
+import { backendGoogleLoginUrl, backendSessionEnabled } from "@/lib/client-session";
 import { isGoogleOAuthConfigured } from "@/lib/session-cookie";
 
 export async function GET(request: Request) {
+  // Una sola identidad: con el backend configurado, el login de Google es el suyo.
+  if (backendSessionEnabled) {
+    return NextResponse.redirect(backendGoogleLoginUrl("/"));
+  }
   const clientId = process.env.AUTH_GOOGLE_ID;
   const configuredOrigin = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
   const requestOrigin = new URL(request.url).origin;

@@ -167,6 +167,19 @@ export const services: ServiceItem[] = [
   },
 ];
 
+export interface AddonItem {
+  id: string;
+  name: string;
+  detail: string;
+  price: number;
+}
+
+export const addons: AddonItem[] = [
+  { id: "wax", name: "Styling wax", detail: "Cera mate para llevar", price: 15000 },
+  { id: "treatment", name: "Tratamiento de barba", detail: "Hidratación profunda", price: 20000 },
+  { id: "design", name: "Diseño adicional", detail: "Líneas o diseño freehand", price: 15000 },
+];
+
 export const testimonials = [
   {
     name: "Andrés M.",

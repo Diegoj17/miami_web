@@ -1,7 +1,18 @@
 import { PHASE_DEVELOPMENT_SERVER } from "next/constants.js";
 
+/** Origen del backend (solo https, o http en localhost) para la sesión compartida. */
+function backendOrigin() {
+  try {
+    const url = new URL(process.env.NEXT_PUBLIC_API_URL || "");
+    const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    if (url.protocol === "https:" || (url.protocol === "http:" && local)) return url.origin;
+  } catch {}
+  return "";
+}
+
 /** @param {boolean} isDev */
 function securityHeaders(isDev) {
+  const api = backendOrigin();
   const csp = [
     "default-src 'self'",
     // Next.js inyecta scripts inline para la hidratación; en desarrollo también usa eval.
@@ -10,7 +21,7 @@ function securityHeaders(isDev) {
     "font-src 'self' https://fonts.gstatic.com",
     "img-src 'self' data: blob: https://images.unsplash.com https://lh3.googleusercontent.com",
     "frame-src https://www.google.com",
-    `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
+    `connect-src 'self'${api ? ` ${api}` : ""}${isDev ? " ws: wss:" : ""}`,
     "form-action 'self' https://accounts.google.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",

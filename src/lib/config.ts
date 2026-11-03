@@ -38,6 +38,15 @@ function parseBookingOrigin(raw: string): string | null {
 
 const BOOKING_ORIGIN = parseBookingOrigin(EXTERNAL_BOOKING_URL);
 
+/**
+ * Backend de la agenda (miami_web_backend). Si está configurado, el cliente inicia
+ * sesión con Google a través de él y comparte la misma sesión con la agenda.
+ * Misma validación que la agenda: https (http solo en localhost), sin credenciales.
+ */
+export const BACKEND_API_ORIGIN = parseBookingOrigin(
+  process.env.NEXT_PUBLIC_API_URL || "",
+);
+
 export const BOOKING_ENABLED = BOOKING_FLAG && BOOKING_ORIGIN !== null;
 
 /**
