@@ -281,6 +281,7 @@ export interface UserProfileData {
   memberSince: string;
   phone: string;
   lastPhoneChangeAt: string | null;
+  lastNameChangeAt: string | null;
   phoneHistory: PhoneAuditEntry[];
   preferredBarberId: string;
   styleNotes: string;
@@ -304,7 +305,7 @@ export function createSeedAccounts(): Record<string, UserProfileData> {
       memberCode: "SOCIO COBRE #0418",
       memberSince: "Diciembre 2024",
       phone: "+52 55 4821 0934",
-      // Más de 30 días desde el último cambio: disponible para actualizar y probar el bloqueo en vivo
+      lastNameChangeAt: null,
       lastPhoneChangeAt: "2026-08-14T16:30:00.000Z",
       phoneHistory: [
         {
@@ -453,7 +454,7 @@ export function createSeedAccounts(): Record<string, UserProfileData> {
       memberCode: "SOCIO COBRE #0192",
       memberSince: "Marzo 2023",
       phone: "+52 55 9103 7742",
-      // Modificado hace 12 días: muestra el bloqueo activo (18 días restantes)
+      lastNameChangeAt: null,
       lastPhoneChangeAt: twelveDaysAgoIso,
       phoneHistory: [
         {

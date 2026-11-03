@@ -692,7 +692,11 @@ function ProfileAndPhoneSection({
   );
   const [styleNotes, setStyleNotes] = useState(user.styleNotes);
 
-  // Phone cooldown policy & editor state
+  const namePolicy = useMemo(
+    () => evaluatePhonePolicy(user.lastNameChangeAt),
+    [user.lastNameChangeAt],
+  );
+
   const policy = useMemo(
     () => evaluatePhonePolicy(user.lastPhoneChangeAt),
     [user.lastPhoneChangeAt],
@@ -767,11 +771,19 @@ function ProfileAndPhoneSection({
 
         <form className="profile-form" onSubmit={handleProfileFormSubmit}>
           <label>
-            <span>Nombre en tus reservaciones</span>
+            <span>
+              Nombre en tus reservaciones{" "}
+              <small>
+                {namePolicy.canChange
+                  ? `Cambio disponible · cada ${PHONE_COOLDOWN_DAYS} días`
+                  : `Disponible el ${namePolicy.nextAvailableFormatted}`}
+              </small>
+            </span>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              disabled={!namePolicy.canChange}
               required
             />
           </label>

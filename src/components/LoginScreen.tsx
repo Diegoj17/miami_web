@@ -250,7 +250,7 @@ export function LoginScreen({
                 </span>
                 <span>
                   <Icon name="check" size={14} /> Perfil personal y
-                  modificación de teléfono con plazos de 30 días
+                  modificación de nombre y teléfono cada 15 días
                 </span>
               </div>
             </div>

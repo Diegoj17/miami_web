@@ -1,44 +1,54 @@
-# Cobre Barber Club — Landing Page & Portal de Clientes
+# Cobre Barber Club
 
-Aplicación web editorial en **Next.js (App Router) + TypeScript** diseñada con estética cálida de lujo (*Cobre Barber Club*), portal de clientes con Google / Invitado, historial calificable y control de plazos para cambio de teléfono.
+## Experiencia de barbería, llevada a otro nivel
 
-## Funcionalidades principales
+Cobre Barber Club es una experiencia digital premium para una barbería de autor en Roma Norte. Su diseño combina la calidez de un club de barrio con una atención contemporánea, cuidada y personal.
 
-1. **Landing Page Editorial Completa**:
-   - Hero con estado dinámico de horario según el día actual, historia de *La Casa*, equipo de barberos con **portafolios individuales interactivos**, catálogo de servicios, galería mosaico con *lightbox*, reseñas verificadas y ubicación con mapa integrado.
-   - **Botones de Agendar deshabilitados intencionalmente**: todos los botones de reserva (`Agendar cita`, `Agendar con barbero`, `Agendar servicio`, `Repetir look`) muestran estado bloqueado (`Próximamente`) listos para conectarse con tu otro aplicativo.
-2. **Inicio de sesión mejorado (Google + Invitado)**:
-   - **Cuenta con Google**: incluye rutas listas para Google OAuth 2.0 real (`/api/auth/google` y `/api/auth/google/callback` con cookie firmada HMAC) y selector interactivo de demostración **solo en desarrollo** cuando aún no se configuran credenciales en `.env.local` (en producción sin credenciales, el acceso con Google queda deshabilitado).
-   - **Modo Invitado**: consulta con el código de la cita **y** el teléfono de la reservación (ej. `CB-8492` + `+52 55 4821 0934`), con bloqueo de 5 minutos tras 5 intentos fallidos, para consultar citas programadas sin cuenta, reservando historial completo, calificaciones y perfil para cuentas vinculadas con Google.
-3. **Citas programadas**:
-   - Detalle de fecha, hora, barbero asignado, desglose de servicio/extras, ubicación y enlace directo a WhatsApp.
-4. **Historial de citas y calificaciones**:
-   - Filtros (`Todas`, `Por calificar`, `Calificadas`), indicadores resumen, notas técnicas del barbero y modal interactivo de calificación (1 a 5 estrellas, etiquetas destacables y reseña escrita).
-5. **Perfil de cliente y cambio de teléfono con plazo de 30 días**:
-   - Edición de nombre y preferencias de corte/notificaciones.
-   - Módulo de seguridad telefónica con validación por país, paso obligatorio de confirmación, bloqueo automático de **30 días naturales** tras cada modificación, barra de progreso, fecha exacta de habilitación e historial de auditoría.
+La aplicación acompaña al cliente antes, durante y después de cada visita: descubre el estilo de la casa, conoce al equipo, agenda una cita y mantiene el control de su experiencia desde un espacio personal.
 
-## Ejecución local
+## Una presencia digital con identidad
 
-```bash
-npm install
-npm run dev
-```
+- Dirección visual editorial, sobria y cálida.
+- Fotografía, tipografía y detalles inspirados en la estética de una barbería clásica.
+- Experiencia optimizada para dispositivos móviles y escritorio.
+- Navegación clara, elegante y centrada en la conversión.
+- Accesos directos a reservas, ubicación, contacto y WhatsApp.
 
-Abre `http://localhost:3000`.
+## Descubre Cobre
 
-## Conexión futura con el aplicativo de reservas y Google OAuth
+La experiencia pública presenta la esencia completa del club:
 
-Copia `.env.example` a `.env.local`:
+- Historia y filosofía de la barbería.
+- Equipo de barberos con especialidades, trayectoria y portafolios individuales.
+- Catálogo de servicios con duración, descripción y valor.
+- Galería visual con exploración ampliada.
+- Testimonios de clientes.
+- Horarios, ubicación y formas de contacto.
 
-```env
-# Habilitar botones de agendar cuando tu otro aplicativo esté listo
-NEXT_PUBLIC_BOOKING_ENABLED=true
-NEXT_PUBLIC_EXTERNAL_BOOKING_URL=https://tu-aplicativo-reservas.com
+## Reserva con libertad
 
-# Credenciales reales de Google Cloud Console (OAuth 2.0)
-# Redirect URI autorizada: http://localhost:3000/api/auth/google/callback
-AUTH_GOOGLE_ID=...
-AUTH_GOOGLE_SECRET=...
-AUTH_SECRET=...   # mínimo 32 caracteres; genera uno con: openssl rand -base64 48
-```
+El cliente puede iniciar una reserva como invitado, sin crear una cuenta. El proceso solicita únicamente la información necesaria para confirmar la cita y permite elegir el servicio, el horario y el profesional de preferencia.
+
+También puede iniciar sesión con su cuenta de Google para disfrutar una experiencia más completa y conectada.
+
+## Cuenta personal
+
+La cuenta de cliente reúne en un solo lugar:
+
+- Citas programadas.
+- Detalle de servicio, horario, profesional y ubicación.
+- Historial de visitas.
+- Calificaciones y reseñas de cada experiencia.
+- Preferencias personales de corte.
+- Información de contacto y seguridad.
+- Comunicación directa con el club por WhatsApp.
+
+## Privacidad y control
+
+La experiencia está diseñada para que cada cliente tenga claridad sobre su información y sus acciones. Los cambios de nombre y teléfono cuentan con un plazo de seguridad de 15 días entre actualizaciones, ayudando a proteger la continuidad de las citas y la identidad asociada a la cuenta.
+
+## La promesa de Cobre
+
+Buen oficio, conversación honesta y un corte que se siente tuyo.
+
+Cada detalle de la aplicación busca transmitir la misma sensación que una visita al club: confianza, atención y tiempo bien invertido.

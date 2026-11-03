@@ -5,7 +5,11 @@ import {
   UserProfileData,
   photos,
 } from "./data";
-import { maskPhoneForAudit, normalizeDigits } from "./phone-policy";
+import {
+  evaluatePhonePolicy,
+  maskPhoneForAudit,
+  normalizeDigits,
+} from "./phone-policy";
 
 const ACCOUNTS_KEY = "cobre_club_accounts_v1";
 const ACTIVE_SESSION_KEY = "cobre_club_session_v1";
@@ -99,6 +103,7 @@ export function getOrCreateGoogleUser(params: {
     memberCode: `SOCIO COBRE #${randomCode}`,
     memberSince: "Octubre 2026",
     phone: "+52 55 3410 8821",
+    lastNameChangeAt: null,
     lastPhoneChangeAt: null,
     phoneHistory: [],
     preferredBarberId: "mateo",
@@ -187,9 +192,20 @@ export function updateProfilePreferences(
   const account = store[key];
   if (!account) return null;
 
+  const nextName = updates.name.trim();
+  const nameChanged = nextName.length > 0 && nextName !== account.name;
+  const namePolicy = evaluatePhonePolicy(account.lastNameChangeAt);
+  const changedAt = new Date().toISOString();
   const updated: UserProfileData = {
     ...account,
-    name: updates.name.trim() || account.name,
+    name:
+      nameChanged && namePolicy.canChange
+        ? nextName || account.name
+        : account.name,
+    lastNameChangeAt:
+      nameChanged && namePolicy.canChange
+        ? changedAt
+        : account.lastNameChangeAt ?? null,
     preferredBarberId: updates.preferredBarberId,
     styleNotes: updates.styleNotes,
   };
@@ -227,6 +243,9 @@ export function commitPhoneChangeWithCooldown(
   const store = loadAccountsStore();
   const account = store[key];
   if (!account) return null;
+  if (!evaluatePhonePolicy(account.lastPhoneChangeAt, new Date(changedAtIso)).canChange) {
+    return account;
+  }
 
   const auditEntry = {
     id: `ph_${Date.now()}`,

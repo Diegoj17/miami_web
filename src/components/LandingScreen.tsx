@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { BOOKING_ENABLED, CLUB_INFO } from "@/lib/config";
 import { bogotaWeekday, formatCOP } from "@/lib/format";
-import { barbers, photos, services, testimonials } from "@/lib/data";
+import { agendaApiEnabled, getCatalog } from "@/lib/agenda-api";
+import { barbers, photos, services as staticServices, testimonials, type ServiceItem } from "@/lib/data";
 import { Icon } from "./Icons";
 import { BookingButton, Button } from "./UIPrimitives";
 
@@ -18,9 +19,37 @@ export function LandingScreen({
 }) {
   const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
   const [todayJsDay, setTodayJsDay] = useState<number>(2);
+  // Con el backend, los servicios son los mismos de la agenda (IDs, precios y duraciones reales),
+  // así "Agendar servicio" abre la agenda con ese servicio ya elegido.
+  const [services, setServices] = useState<ServiceItem[]>(staticServices);
 
   useEffect(() => {
     setTodayJsDay(bogotaWeekday());
+  }, []);
+
+  useEffect(() => {
+    if (!agendaApiEnabled) return;
+    let cancelled = false;
+    getCatalog()
+      .then((catalog) => {
+        if (cancelled || !catalog.services.length) return;
+        setServices(
+          catalog.services.map((service) => ({
+            id: service.id,
+            agendaId: service.id,
+            name: service.name,
+            detail: service.description || service.category,
+            duration: `${service.durationMin} min`,
+            price: service.price,
+          })),
+        );
+      })
+      .catch(() => {
+        // Sin backend se mantiene la lista de la landing.
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const goToLocation = () =>

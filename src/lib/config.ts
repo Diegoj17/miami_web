@@ -72,7 +72,7 @@ export function buildBookingUrl({
   return url.toString();
 }
 
-export const PHONE_COOLDOWN_DAYS = 30;
+export const PHONE_COOLDOWN_DAYS = 15;
 
 export const BOOKING_DISABLED_MESSAGE =
   "El agendamiento en línea se encuentra deshabilitado temporalmente mientras conectamos nuestro sistema de reservas.";
