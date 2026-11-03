@@ -12,9 +12,6 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   // Con el backend configurado, Google se maneja allí y la sesión se comparte con la agenda.
   const googleOAuthConfigured = backendSessionEnabled || isGoogleOAuthConfigured();
-  // En entorno de desarrollo se permite además el selector de prueba local por conveniencia.
-  const demoLoginAllowed = process.env.NODE_ENV !== "production";
-
   let serverGoogleUser = null;
   if (!backendSessionEnabled && isGoogleOAuthConfigured()) {
     const cookieStore = await cookies();
@@ -25,7 +22,6 @@ export default async function HomePage() {
   return (
     <CobreApp
       googleOAuthConfigured={googleOAuthConfigured}
-      demoLoginAllowed={demoLoginAllowed}
       serverGoogleUser={serverGoogleUser}
     />
   );

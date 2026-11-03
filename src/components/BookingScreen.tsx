@@ -1,20 +1,33 @@
 "use client";
 
-import { ChangeEvent, useMemo, useRef, useState } from "react";
-import { formatCOP } from "@/lib/format";
+import { useEffect, useMemo, useState } from "react";
 import {
-  addons,
-  barbers,
-  Barber,
-  photos,
-  ScheduledAppointment,
-  services,
-  UserProfileData,
-} from "@/lib/data";
+  AgendaApiError,
+  agendaApiEnabled,
+  createBooking,
+  formatBogotaDate,
+  formatBogotaTime,
+  getAvailableDays,
+  getBookingQuestions,
+  getCatalog,
+  getSlots,
+  type AgendaAppointment,
+  type AgendaCatalog,
+  type AgendaDay,
+  type AgendaProfessional,
+  type AgendaQuestion,
+  type AgendaService,
+  type AgendaSlot,
+} from "@/lib/agenda-api";
+import { manageUrlFor } from "@/lib/agenda-mapping";
+import { CLUB_INFO, EXTERNAL_BOOKING_URL } from "@/lib/config";
+import { barbers, photos, UserProfileData } from "@/lib/data";
+import { formatCOP } from "@/lib/format";
 import { Icon } from "./Icons";
 import { Button, Eyebrow, SectionHeading } from "./UIPrimitives";
 
 const steps = ["Servicio", "Fecha", "Estilo", "Datos", "Listo"];
+const NOTES_MAX = 180;
 
 function BookingStepper({ step }: { step: number }) {
   return (
@@ -36,9 +49,32 @@ function BookingStepper({ step }: { step: number }) {
   );
 }
 
+/** Foto del barbero de la landing (por su ID en la agenda) o la del backend. */
+function barberImage(pro: AgendaProfessional | undefined): string {
+  const local = barbers.find((b) => b.agendaId === pro?.id);
+  return local?.image ?? pro?.avatarUrl ?? photos.chair;
+}
+
+const shortName = (pro?: AgendaProfessional) => pro?.name.split(" ")[0] ?? "";
+
+/** Política de datos publicada en la agenda (misma empresa, mismo tratamiento). */
+function privacyUrl(): string | undefined {
+  try {
+    return EXTERNAL_BOOKING_URL
+      ? `${new URL(EXTERNAL_BOOKING_URL).origin}/legal/privacidad`
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Reserva desde la landing contra el backend de la agenda: catálogo, días y
+ * horarios libres reales, y la cita queda creada en el mismo sistema que ve
+ * miami_agenda. No se guarda nada de la reserva en el navegador.
+ */
 export function BookingScreen({
   initialBarberIndex = 0,
-  initialServiceId = "signature",
   currentUser,
   onBack,
   onAppointmentCreated,
@@ -49,126 +85,182 @@ export function BookingScreen({
   initialServiceId?: string;
   currentUser?: UserProfileData | null;
   onBack: () => void;
-  onAppointmentCreated?: (appointment: ScheduledAppointment) => void;
+  onAppointmentCreated?: () => void;
   onNavigateHome: () => void;
   onNavigatePortal: () => void;
 }) {
-  const [step, setStep] = useState(0);
-  const [selectedBarberIndex, setSelectedBarberIndex] =
-    useState(initialBarberIndex);
-  const [serviceId, setServiceId] = useState(initialServiceId);
-  const [selectedAddons, setSelectedAddons] = useState<string[]>(["treatment"]);
-  const [day, setDay] = useState(17);
-  const [time, setTime] = useState("16:30");
-  const [image, setImage] = useState<string | null>(photos.cuts[1]);
-  const [notes, setNotes] = useState(
-    "No muy corto a los lados; mantener textura arriba.",
-  );
+  const [catalog, setCatalog] = useState<AgendaCatalog | null>(null);
+  const [loadError, setLoadError] = useState("");
 
-  // Datos del cliente / invitado
+  const [step, setStep] = useState(0);
+  const [proId, setProId] = useState("");
+  const [serviceIds, setServiceIds] = useState<string[]>([]);
+  const [date, setDate] = useState("");
+  const [slot, setSlot] = useState<AgendaSlot | null>(null);
+  const [notes, setNotes] = useState("");
+
   const [name, setName] = useState(currentUser?.name || "");
   const [phone, setPhone] = useState(currentUser?.phone || "");
   const [email, setEmail] = useState(currentUser?.email || "");
-  const [dataError, setDataError] = useState("");
+  const [privacy, setPrivacy] = useState(false);
+  const [questions, setQuestions] = useState<AgendaQuestion[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [formError, setFormError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [booked, setBooked] = useState<AgendaAppointment | null>(null);
 
-  const [generatedFolio, setGeneratedFolio] = useState<string>("");
+  useEffect(() => {
+    if (!agendaApiEnabled) {
+      setLoadError("El agendamiento en línea no está disponible en este momento.");
+      return;
+    }
+    getBookingQuestions()
+      .then(setQuestions)
+      .catch(() => setQuestions([]));
+    getCatalog()
+      .then((data) => {
+        setCatalog(data);
+        const preferred = barbers[initialBarberIndex]?.agendaId;
+        const pro =
+          data.professionals.find((p) => p.id === preferred) ?? data.professionals[0];
+        setProId(pro?.id ?? "");
+      })
+      .catch(() =>
+        setLoadError("No pudimos cargar los servicios. Revisa tu conexión e inténtalo de nuevo."),
+      );
+  }, [initialBarberIndex]);
 
-  const fileRef = useRef<HTMLInputElement>(null);
+  const professional = catalog?.professionals.find((p) => p.id === proId);
+  const offered = useMemo(
+    () =>
+      catalog?.services.filter((s) => professional?.serviceIds.includes(s.id)) ?? [],
+    [catalog, professional],
+  );
+  const selected = offered.filter((s) => serviceIds.includes(s.id));
+  const total = selected.reduce((sum, s) => sum + s.price, 0);
+  const duration = selected.reduce((sum, s) => sum + s.durationMin, 0);
+  const categories = [...new Set(offered.map((s) => s.category))];
 
-  const barber: Barber = barbers[selectedBarberIndex] || barbers[0];
-  const service =
-    services.find((item) => item.id === serviceId) || services[0];
-
-  const total = useMemo(() => {
-    const addonsTotal = addons
-      .filter((item) => selectedAddons.includes(item.id))
-      .reduce((sum, item) => sum + item.price, 0);
-    return service.price + addonsTotal;
-  }, [service, selectedAddons]);
-
-  const toggleAddon = (id: string) => {
-    setSelectedAddons((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
-    );
+  // Un servicio por categoría (p. ej. un corte + barba + cejas), como en la agenda.
+  const toggleService = (service: AgendaService) => {
+    setSlot(null);
+    setServiceIds((current) => {
+      if (current.includes(service.id)) return current.filter((id) => id !== service.id);
+      const sameCategory = new Set(
+        offered.filter((s) => s.category === service.category).map((s) => s.id),
+      );
+      return [...current.filter((id) => !sameCategory.has(id)), service.id];
+    });
   };
 
-  const handleFile = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) setImage(URL.createObjectURL(file));
+  const chooseBarber = (id: string) => {
+    if (id === proId) return;
+    setProId(id);
+    setSlot(null);
+    setDate("");
+    const pro = catalog?.professionals.find((p) => p.id === id);
+    setServiceIds((current) => current.filter((sid) => pro?.serviceIds.includes(sid)));
   };
 
-  const handleConfirmAppointment = () => {
-    setDataError("");
+  const canContinue =
+    step === 0 ? selected.length > 0 && Boolean(professional) : step === 1 ? Boolean(slot) : true;
+
+  const handleConfirmAppointment = async () => {
+    setFormError("");
     const cleanName = name.trim();
     const cleanPhone = phone.trim();
-
-    if (!cleanName || cleanName.length < 2) {
-      setDataError("Por favor ingresa tu nombre completo.");
+    const cleanEmail = email.trim();
+    if (cleanName.length < 3) {
+      setFormError("Por favor ingresa tu nombre completo.");
       return;
     }
-    if (!cleanPhone || cleanPhone.length < 7) {
-      setDataError("Por favor ingresa un número de teléfono de contacto válido.");
+    if (cleanPhone.replace(/\D/g, "").length < 7) {
+      setFormError("Por favor ingresa un número de teléfono de contacto válido.");
       return;
     }
-
-    const folioNum = Math.floor(8000 + Math.random() * 1999);
-    const folio = `CB-${folioNum}`;
-    setGeneratedFolio(folio);
-
-    const newAppointment: ScheduledAppointment = {
-      id: `sch_${Date.now()}`,
-      folio,
-      dateLabel: `${day} de noviembre de 2026`,
-      isoDate: `2026-11-${String(day).padStart(2, "0")}T${time}:00-05:00`,
-      time,
-      duration: service.duration,
-      barberId: barber.id,
-      barberName: barber.name,
-      barberSpecialty: barber.specialty,
-      barberImage: barber.image,
-      serviceName: service.name,
-      extras: addons
-        .filter((a) => selectedAddons.includes(a.id))
-        .map((a) => a.name),
-      total,
-      status: "Confirmada",
-      daysAwayLabel: "Próxima cita reservada",
-      clientNotes: notes.trim(),
-      referenceImage: image || undefined,
-      guestPhoneNormalized: cleanPhone.replace(/\D/g, ""),
-    };
-
-    if (onAppointmentCreated) {
-      onAppointmentCreated(newAppointment);
+    if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setFormError("Revisa el correo electrónico.");
+      return;
     }
-
-    setStep(4);
+    const missing = questions.find((q) => q.required && !answers[q.id]?.trim());
+    if (missing) {
+      setFormError(`Responde: ${missing.label}`);
+      return;
+    }
+    if (!privacy) {
+      setFormError("Debes aceptar la política de datos para reservar.");
+      return;
+    }
+    if (!slot || !selected.length) {
+      setStep(1);
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const appointment = await createBooking({
+        serviceIds: selected.map((s) => s.id),
+        professionalId: slot.professionalId,
+        start: slot.start,
+        name: cleanName,
+        phone: cleanPhone,
+        email: cleanEmail || undefined,
+        note: notes,
+        privacyAccepted: true,
+        answers: questions.map((q) => ({ question: q.label, answer: answers[q.id] ?? "" })),
+      });
+      setBooked(appointment);
+      setStep(4);
+      onAppointmentCreated?.();
+    } catch (error) {
+      if (error instanceof AgendaApiError && error.code === "slot_taken") {
+        setSlot(null);
+        setStep(1);
+        setFormError("Ese horario se acaba de ocupar. Elige otra hora disponible.");
+      } else {
+        setFormError(
+          error instanceof AgendaApiError ? error.message : "No pudimos crear tu cita. Inténtalo de nuevo.",
+        );
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const next = () => {
-    if (step === 3) {
-      handleConfirmAppointment();
-    } else {
-      setStep((current) => Math.min(4, current + 1));
-    }
+    if (!canContinue) return;
+    if (step === 3) void handleConfirmAppointment();
+    else setStep((current) => Math.min(4, current + 1));
   };
 
   const handleBackStep = () => {
-    if (step === 0) {
-      onBack();
-    } else {
-      setStep((current) => current - 1);
-    }
+    setFormError("");
+    if (step === 0) onBack();
+    else setStep((current) => current - 1);
   };
+
+  if (loadError || !catalog) {
+    return (
+      <main className="booking-page page-shell">
+        <div className="booking-top">
+          <Button variant="ghost" className="back-link" onClick={onBack}>
+            <Icon name="back" /> Volver
+          </Button>
+        </div>
+        <p className={loadError ? "login-message is-error" : ""} role={loadError ? "alert" : "status"}>
+          {loadError || "Cargando servicios…"}
+        </p>
+      </main>
+    );
+  }
+
+  const manageUrl = booked ? manageUrlFor(booked.token) : undefined;
+  const policyUrl = privacyUrl();
 
   return (
     <main className="booking-page page-shell">
       <div className="booking-top">
         <Button variant="ghost" className="back-link" onClick={handleBackStep}>
-          <Icon name="back" />{" "}
-          {step === 0 ? "Volver" : "Paso anterior"}
+          <Icon name="back" /> {step === 0 ? "Volver" : "Paso anterior"}
         </Button>
         <BookingStepper step={step} />
       </div>
@@ -190,96 +282,70 @@ export function BookingScreen({
               <div className="booking-barber-selector">
                 <small className="booking-subheading">Barbero asignado:</small>
                 <div className="booking-barber-chips">
-                  {barbers.map((b, idx) => (
+                  {catalog.professionals.map((pro) => (
                     <button
-                      key={b.id}
+                      key={pro.id}
                       type="button"
-                      className={`booking-barber-chip ${
-                        selectedBarberIndex === idx ? "active" : ""
-                      }`}
-                      onClick={() => setSelectedBarberIndex(idx)}
+                      className={`booking-barber-chip ${proId === pro.id ? "active" : ""}`}
+                      onClick={() => chooseBarber(pro.id)}
                     >
-                      <img src={b.image} alt={b.name} />
-                      <span>{b.short}</span>
+                      <img src={barberImage(pro)} alt={pro.name} />
+                      <span>{shortName(pro)}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="service-list">
-                {services.map((item, index) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={`service-option ${
-                      serviceId === item.id ? "selected" : ""
-                    }`}
-                    onClick={() => setServiceId(item.id)}
-                  >
-                    <span className="service-index">0{index + 1}</span>
-                    <span className="service-copy">
-                      <strong>{item.name}</strong>
-                      <small>{item.detail}</small>
-                    </span>
-                    <span className="service-time">
-                      <Icon name="clock" size={15} />
-                      {item.duration}
-                    </span>
-                    <span className="service-price">
-                      {formatCOP(item.price)}
-                    </span>
-                    <span className="selector">
-                      {serviceId === item.id && (
-                        <Icon name="check" size={14} />
-                      )}
-                    </span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="addons-section">
-                <div className="addons-title">
-                  <div>
-                    <Eyebrow>Un toque más</Eyebrow>
-                    <h2>Mejora tu cita</h2>
-                  </div>
-                  <p>Opcional, pero difícil de lamentar.</p>
+              {categories.map((category) => (
+                <div key={category} className="service-list">
+                  <small className="booking-subheading">{category} · elige uno</small>
+                  {offered
+                    .filter((s) => s.category === category)
+                    .map((item, index) => {
+                      const isSelected = serviceIds.includes(item.id);
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`service-option ${isSelected ? "selected" : ""}`}
+                          onClick={() => toggleService(item)}
+                        >
+                          <span className="service-index">0{index + 1}</span>
+                          <span className="service-copy">
+                            <strong>{item.name}</strong>
+                            {item.description && <small>{item.description}</small>}
+                          </span>
+                          <span className="service-time">
+                            <Icon name="clock" size={15} />
+                            {item.durationMin} min
+                          </span>
+                          <span className="service-price">{formatCOP(item.price)}</span>
+                          <span className="selector">
+                            {isSelected && <Icon name="check" size={14} />}
+                          </span>
+                        </button>
+                      );
+                    })}
                 </div>
-                <div className="addons-grid">
-                  {addons.map((addon) => {
-                    const selected = selectedAddons.includes(addon.id);
-                    return (
-                      <button
-                        key={addon.id}
-                        type="button"
-                        className={`addon-card ${selected ? "selected" : ""}`}
-                        onClick={() => toggleAddon(addon.id)}
-                      >
-                        <span className="addon-toggle">
-                          {selected ? (
-                            <Icon name="minus" />
-                          ) : (
-                            <Icon name="plus" />
-                          )}
-                        </span>
-                        <strong>{addon.name}</strong>
-                        <small>{addon.detail}</small>
-                        <span>+{formatCOP(addon.price)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              ))}
             </>
           )}
 
-          {step === 1 && (
+          {step === 1 && professional && (
             <DateStep
-              day={day}
-              setDay={setDay}
-              time={time}
-              setTime={setTime}
-              barber={barber}
+              serviceIds={selected.map((s) => s.id)}
+              professional={professional}
+              date={date}
+              setDate={(value) => {
+                setDate(value);
+                setSlot(null);
+              }}
+              slot={slot}
+              setSlot={(value) => {
+                setSlot(value);
+                setFormError("");
+              }}
+              notice={formError}
             />
           )}
 
@@ -292,73 +358,32 @@ export function BookingScreen({
                     Cuéntanos <em>tu idea.</em>
                   </>
                 }
-                copy="Una imagen vale más que mil indicaciones frente al espejo."
+                copy="Tus indicaciones llegan con tu reserva para que tu barbero se prepare."
               />
-              <div className="inspiration-layout">
-                <div
-                  className="upload-area"
-                  onClick={() => fileRef.current?.click()}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      fileRef.current?.click();
-                    }
-                  }}
-                >
-                  {image ? (
-                    <img
-                      src={image}
-                      alt="Foto de inspiración seleccionada"
-                    />
-                  ) : (
-                    <div>
-                      <Icon name="camera" size={28} />
-                      <strong>Sube tu referencia</strong>
-                      <span>JPG o PNG · máx. 10 MB</span>
-                    </div>
-                  )}
-                  {image && (
-                    <div className="image-overlay">
-                      <Icon name="camera" /> Cambiar foto
-                    </div>
-                  )}
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFile}
-                    aria-label="Cargar foto de inspiración"
-                  />
+              <div className="style-notes">
+                <div className="privacy-note">
+                  <span>
+                    <Icon name="check" />
+                  </span>
+                  <p>
+                    <strong>{shortName(professional)} las verá antes de tu llegada.</strong>
+                    <br />
+                    Escribe solo lo necesario sobre tu corte; no incluyas datos personales.
+                  </p>
                 </div>
-                <div className="style-notes">
-                  <div className="privacy-note">
-                    <span>
-                      <Icon name="check" />
-                    </span>
-                    <p>
-                      <strong>
-                        {barber.short} la verá antes de tu llegada.
-                      </strong>
-                      <br />
-                      Así podrá preparar una recomendación pensada para ti.
-                    </p>
-                  </div>
-                  <label htmlFor="booking-notes">
-                    Algo que debamos saber <small>Opcional</small>
-                  </label>
-                  <textarea
-                    id="booking-notes"
-                    value={notes}
-                    onChange={(event) =>
-                      setNotes(event.target.value.slice(0, 180))
-                    }
-                    rows={5}
-                    placeholder="Ej. no muy corto a los lados; mantener textura arriba…"
-                  />
-                  <span className="character-count">{notes.length}/180</span>
-                </div>
+                <label htmlFor="booking-notes">
+                  Algo que debamos saber <small>Opcional</small>
+                </label>
+                <textarea
+                  id="booking-notes"
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value.slice(0, NOTES_MAX))}
+                  rows={5}
+                  placeholder="Ej. no muy corto a los lados; mantener textura arriba…"
+                />
+                <span className="character-count">
+                  {notes.length}/{NOTES_MAX}
+                </span>
               </div>
             </>
           )}
@@ -372,62 +397,111 @@ export function BookingScreen({
                     Últimos <em>detalles.</em>
                   </>
                 }
-                copy="¿Dónde te enviamos la confirmación de tu cita?"
+                copy="¿Cómo te contactamos para confirmar tu cita?"
               />
               <form
                 className="contact-form"
                 onSubmit={(event) => {
                   event.preventDefault();
-                  handleConfirmAppointment();
+                  void handleConfirmAppointment();
                 }}
               >
                 <label>
                   Nombre completo <span>*</span>
                   <input
                     value={name}
-                    onChange={(event) => setName(event.target.value)}
+                    onChange={(event) => setName(event.target.value.slice(0, 160))}
                     required
+                    autoComplete="name"
                     placeholder="Ej. Santiago Márquez"
                   />
                 </label>
                 <label>
-                  Teléfono <span>*</span>
+                  Celular <span>*</span>
                   <input
                     value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
+                    onChange={(event) => setPhone(event.target.value.slice(0, 40))}
                     required
                     type="tel"
-                    placeholder="Ej. +52 55 4821 0934"
+                    autoComplete="tel"
+                    placeholder="Ej. 300 123 4567"
                   />
                 </label>
                 <label>
                   Correo electrónico <small>Opcional</small>
                   <input
                     value={email}
-                    onChange={(event) => setEmail(event.target.value)}
+                    onChange={(event) => setEmail(event.target.value.slice(0, 160))}
                     type="email"
+                    autoComplete="email"
                     placeholder="tu@email.com"
+                    readOnly={Boolean(currentUser?.email)}
                   />
                 </label>
+                {questions.map((q) => (
+                  <fieldset key={q.id} className="booking-question">
+                    <legend>
+                      {q.label} {q.required ? <span>*</span> : <small>Opcional</small>}
+                    </legend>
+                    {q.type === "text" ? (
+                      <input
+                        value={answers[q.id] ?? ""}
+                        onChange={(event) =>
+                          setAnswers((a) => ({ ...a, [q.id]: event.target.value.slice(0, 500) }))
+                        }
+                      />
+                    ) : (
+                      <div className="booking-question-options">
+                        {(q.type === "yesno" ? ["Sí", "No"] : q.options).map((option) => (
+                          <button
+                            key={option}
+                            type="button"
+                            className={`btn btn-outline ${answers[q.id] === option ? "is-selected" : ""}`}
+                            aria-pressed={answers[q.id] === option}
+                            onClick={() => setAnswers((a) => ({ ...a, [q.id]: option }))}
+                          >
+                            {option}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </fieldset>
+                ))}
 
-                {dataError && (
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={privacy}
+                    onChange={(event) => setPrivacy(event.target.checked)}
+                  />
+                  <span>
+                    Acepto el tratamiento de mis datos para gestionar mi cita
+                    {policyUrl && (
+                      <>
+                        {" "}según la{" "}
+                        <a href={policyUrl} target="_blank" rel="noopener noreferrer">
+                          política de datos
+                        </a>
+                      </>
+                    )}
+                    .
+                  </span>
+                </label>
+
+                {formError && (
                   <p className="login-message is-error" role="alert">
-                    {dataError}
+                    {formError}
                   </p>
                 )}
 
-                <p>
-                  <Icon name="check" /> Te enviaremos un recordatorio 24 horas
-                  antes. Sin promociones innecesarias.
-                </p>
-                <Button type="submit" className="desktop-submit">
-                  Confirmar cita <Icon name="arrow" />
+                <Button type="submit" className="desktop-submit" disabled={submitting}>
+                  {submitting ? "Reservando…" : "Confirmar cita"} <Icon name="arrow" />
                 </Button>
               </form>
             </>
           )}
 
-          {step === 4 && (
+          {step === 4 && booked && (
             <div className="confirmation">
               <div className="confirmation-mark">
                 <Icon name="check" size={32} />
@@ -439,80 +513,58 @@ export function BookingScreen({
                 <em>reservado.</em>
               </h1>
               <p>
-                Folio #{generatedFolio || "CB-8492"} · {day} de noviembre de 2026 · {time} hrs
+                Código #{booked.id.replace(/^apt_/i, "").toUpperCase()} ·{" "}
+                {formatBogotaDate(booked.start)} · {formatBogotaTime(booked.start)} hrs
                 <br />
-                Cobre Barber Club, Roma Norte
+                {CLUB_INFO.name}, {CLUB_INFO.addressLine1}
               </p>
               <div className="confirmation-card">
                 <div className="confirmation-barber">
-                  <img src={barber.image} alt={barber.name} />
+                  <img src={barberImage(professional)} alt={booked.professionalName} />
                   <div>
                     <small>Tu barbero asignado</small>
-                    <strong>{barber.name}</strong>
+                    <strong>{booked.professionalName}</strong>
                   </div>
                 </div>
                 <div className="confirmation-details">
                   <div>
                     <span>Servicio</span>
-                    <strong>{service.name}</strong>
+                    <strong>{selected.map((s) => s.name).join(" + ")}</strong>
                   </div>
                   <div>
                     <span>Duración</span>
-                    <strong>{service.duration}</strong>
-                  </div>
-                  <div>
-                    <span>Extras</span>
-                    <strong>
-                      {selectedAddons.length
-                        ? addons
-                            .filter((a) => selectedAddons.includes(a.id))
-                            .map((a) => a.name)
-                            .join(", ")
-                        : "Ninguno"}
-                    </strong>
+                    <strong>{duration} min</strong>
                   </div>
                   <div>
                     <span>Total estimado</span>
                     <strong className="gold">{formatCOP(total)}</strong>
                   </div>
                 </div>
-                {image && (
-                  <div className="confirmation-inspiration">
-                    <img src={image} alt="Inspiración adjunta" />
-                    <div>
-                      <Icon name="check" />
-                      <span>
-                        Inspiración adjunta
-                        <br />
-                        <small>{barber.short} la revisará antes</small>
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {!currentUser && (
                 <div className="confirmation-guest-note">
                   <Icon name="info" size={16} />
                   <p>
-                    <strong>Cita generada como invitado:</strong> guarda tu
-                    folio #{generatedFolio}. Como invitado solo generas tu
-                    reserva; para consultar historial o calificar tus cortes,
-                    puedes iniciar sesión con Google cuando gustes.
+                    <strong>Guarda el enlace de tu cita:</strong> con él puedes
+                    reprogramarla o cancelarla. Es personal; no lo compartas. Si
+                    inicias sesión con Google verás tu historial y podrás calificar
+                    tus cortes.
                   </p>
                 </div>
               )}
 
               <div className="confirmation-actions">
-                {currentUser && (
-                  <Button onClick={onNavigatePortal}>
-                    Ver en mis citas programadas
-                  </Button>
+                {currentUser ? (
+                  <Button onClick={onNavigatePortal}>Ver en mis citas programadas</Button>
+                ) : (
+                  manageUrl && (
+                    <a className="btn btn-primary" href={manageUrl} rel="noopener noreferrer">
+                      Gestionar mi cita
+                    </a>
+                  )
                 )}
-                <Button
-                  variant={currentUser ? "ghost" : "primary"}
-                  onClick={onNavigateHome}
-                >
+                <Button variant="ghost" onClick={onNavigateHome}>
                   Volver al inicio <Icon name="arrow" />
                 </Button>
               </div>
@@ -523,11 +575,10 @@ export function BookingScreen({
         {step < 4 && (
           <BookingSummary
             total={total}
-            service={service}
-            day={day}
-            time={time}
-            selectedAddons={selectedAddons}
-            barber={barber}
+            services={selected}
+            duration={duration}
+            slot={slot}
+            professional={professional}
           />
         )}
       </div>
@@ -538,7 +589,7 @@ export function BookingScreen({
             <small>Total estimado</small>
             <strong>{formatCOP(total)}</strong>
           </div>
-          <Button onClick={next}>
+          <Button onClick={next} disabled={!canContinue}>
             Continuar <Icon name="arrow" />
           </Button>
         </div>
@@ -550,8 +601,8 @@ export function BookingScreen({
             <small>Todo listo</small>
             <strong>{formatCOP(total)}</strong>
           </div>
-          <Button onClick={handleConfirmAppointment}>
-            Confirmar cita <Icon name="arrow" />
+          <Button onClick={() => void handleConfirmAppointment()} disabled={submitting}>
+            {submitting ? "Reservando…" : "Confirmar cita"} <Icon name="arrow" />
           </Button>
         </div>
       )}
@@ -559,31 +610,65 @@ export function BookingScreen({
   );
 }
 
+const WEEKDAYS = ["L", "M", "X", "J", "V", "S", "D"];
+
+/** Fecha 'YYYY-MM-DD' a mediodía UTC: el día no cambia con la zona horaria del visitante. */
+const atNoon = (key: string) => new Date(`${key}T12:00:00Z`);
+
 function DateStep({
-  day,
-  setDay,
-  time,
-  setTime,
-  barber,
+  serviceIds,
+  professional,
+  date,
+  setDate,
+  slot,
+  setSlot,
+  notice,
 }: {
-  day: number;
-  setDay: (day: number) => void;
-  time: string;
-  setTime: (time: string) => void;
-  barber: Barber;
+  serviceIds: string[];
+  professional: AgendaProfessional;
+  date: string;
+  setDate: (date: string) => void;
+  slot: AgendaSlot | null;
+  setSlot: (slot: AgendaSlot) => void;
+  notice: string;
 }) {
-  const days = Array.from({ length: 30 }, (_, index) => index + 1);
-  const times = [
-    "09:00",
-    "10:30",
-    "11:30",
-    "13:00",
-    "14:30",
-    "16:30",
-    "17:30",
-    "19:00",
-  ];
-  const unavailable = ["10:30", "14:30", "19:00"];
+  const [days, setDays] = useState<AgendaDay[] | null>(null);
+  const [slots, setSlots] = useState<AgendaSlot[] | null>(null);
+  const [error, setError] = useState("");
+  const [monthIndex, setMonthIndex] = useState(0);
+  const serviceKey = serviceIds.join(",");
+
+  useEffect(() => {
+    setDays(null);
+    setError("");
+    getAvailableDays(serviceKey.split(","), professional.id)
+      .then((list) => {
+        setDays(list);
+        if (!date) {
+          const first = list.find((d) => d.available);
+          if (first) setDate(first.date);
+        }
+      })
+      .catch(() => setError("No pudimos consultar la disponibilidad. Inténtalo de nuevo."));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serviceKey, professional.id]);
+
+  useEffect(() => {
+    if (!date) return;
+    setSlots(null);
+    getSlots(serviceKey.split(","), professional.id, date)
+      .then(setSlots)
+      .catch(() => setError("No pudimos consultar los horarios. Inténtalo de nuevo."));
+  }, [date, serviceKey, professional.id]);
+
+  const months = useMemo(() => {
+    const keys = [...new Set((days ?? []).map((d) => d.date.slice(0, 7)))];
+    return keys;
+  }, [days]);
+  const month = months[Math.min(monthIndex, Math.max(0, months.length - 1))];
+  const monthDays = (days ?? []).filter((d) => d.date.startsWith(month ?? ""));
+  const leading = monthDays.length ? (atNoon(monthDays[0].date).getUTCDay() + 6) % 7 : 0;
+  const availableCount = slots?.length ?? 0;
 
   return (
     <>
@@ -594,40 +679,59 @@ function DateStep({
             Reserva tu <em>momento.</em>
           </>
         }
-        copy={`Disponibilidad de ${barber.name}. Sin esperas, sin prisas.`}
+        copy={`Disponibilidad real de ${professional.name}. Horas en hora de Bogotá.`}
       />
+      {(notice || error) && (
+        <p className="login-message is-error" role="alert">
+          {notice || error}
+        </p>
+      )}
       <div className="date-time-grid">
         <div className="calendar-panel">
           <div className="calendar-header">
-            <button type="button" aria-label="Mes anterior">
+            <button
+              type="button"
+              aria-label="Mes anterior"
+              disabled={monthIndex === 0}
+              onClick={() => setMonthIndex((i) => Math.max(0, i - 1))}
+            >
               <Icon name="back" />
             </button>
-            <strong>Noviembre 2026</strong>
-            <button type="button" aria-label="Mes siguiente">
+            <strong>
+              {month
+                ? new Intl.DateTimeFormat("es-CO", { month: "long", year: "numeric", timeZone: "UTC" }).format(
+                    atNoon(`${month}-01`),
+                  )
+                : "Cargando…"}
+            </strong>
+            <button
+              type="button"
+              aria-label="Mes siguiente"
+              disabled={monthIndex >= months.length - 1}
+              onClick={() => setMonthIndex((i) => Math.min(months.length - 1, i + 1))}
+            >
               <Icon name="chevron" />
             </button>
           </div>
           <div className="weekdays">
-            {["L", "M", "X", "J", "V", "S", "D"].map((item) => (
+            {WEEKDAYS.map((item) => (
               <span key={item}>{item}</span>
             ))}
           </div>
           <div className="calendar-days">
-            <span className="muted">26</span>
-            <span className="muted">27</span>
-            <span className="muted">28</span>
-            <span className="muted">29</span>
-            <span className="muted">30</span>
-            <span className="muted">31</span>
-            {days.map((item) => (
+            {Array.from({ length: leading }, (_, i) => (
+              <span key={`pad-${i}`} className="muted" />
+            ))}
+            {monthDays.map((item) => (
               <button
-                key={item}
+                key={item.date}
                 type="button"
-                disabled={[3, 9, 14, 22, 29].includes(item)}
-                className={day === item ? "selected" : ""}
-                onClick={() => setDay(item)}
+                disabled={!item.available}
+                className={date === item.date ? "selected" : ""}
+                onClick={() => setDate(item.date)}
+                aria-label={formatBogotaDate(`${item.date}T17:00:00Z`)}
               >
-                {item}
+                {Number(item.date.slice(8))}
               </button>
             ))}
           </div>
@@ -645,29 +749,33 @@ function DateStep({
         <div className="time-panel">
           <div className="time-heading">
             <div>
-              <strong>Martes, {day} de noviembre</strong>
-              <span>Hora local · 8 horarios disponibles</span>
+              <strong>{date ? formatBogotaDate(`${date}T17:00:00Z`) : "Elige un día"}</strong>
+              <span>
+                {slots === null && date
+                  ? "Consultando horarios…"
+                  : `Hora de Bogotá · ${availableCount} horario${availableCount === 1 ? "" : "s"} disponible${availableCount === 1 ? "" : "s"}`}
+              </span>
             </div>
             <Icon name="clock" />
           </div>
           <div className="time-slots">
-            {times.map((item) => (
-              <button
-                key={item}
-                type="button"
-                disabled={unavailable.includes(item)}
-                className={time === item ? "selected" : ""}
-                onClick={() => setTime(item)}
-              >
-                {item}
-                {time === item && <Icon name="check" />}
-              </button>
-            ))}
+            {(slots ?? []).map((item) => {
+              const isSelected = slot?.start === item.start;
+              return (
+                <button
+                  key={item.start}
+                  type="button"
+                  className={isSelected ? "selected" : ""}
+                  onClick={() => setSlot(item)}
+                >
+                  {formatBogotaTime(item.start)}
+                  {isSelected && <Icon name="check" />}
+                </button>
+              );
+            })}
           </div>
-          <p>
-            Los horarios se reservan temporalmente mientras completas tus
-            datos.
-          </p>
+          {slots && slots.length === 0 && <p>No quedan horarios este día. Prueba con otra fecha.</p>}
+          <p>El horario se confirma al terminar tu reserva.</p>
         </div>
       </div>
     </>
@@ -676,49 +784,48 @@ function DateStep({
 
 function BookingSummary({
   total,
-  service,
-  day,
-  time,
-  selectedAddons,
-  barber,
+  services,
+  duration,
+  slot,
+  professional,
 }: {
   total: number;
-  service: typeof services[number];
-  day: number;
-  time: string;
-  selectedAddons: string[];
-  barber: Barber;
+  services: AgendaService[];
+  duration: number;
+  slot: AgendaSlot | null;
+  professional?: AgendaProfessional;
 }) {
   return (
     <aside className="booking-summary">
       <Eyebrow>Tu cita</Eyebrow>
-      <div className="summary-barber">
-        <img src={barber.image} alt={barber.name} />
-        <div>
-          <strong>{barber.name}</strong>
-          <span>{barber.specialty}</span>
+      {professional && (
+        <div className="summary-barber">
+          <img src={barberImage(professional)} alt={professional.name} />
+          <div>
+            <strong>{professional.name}</strong>
+            <span>{professional.specialty}</span>
+          </div>
         </div>
-        <span>{barber.rating} ★</span>
-      </div>
+      )}
       <div className="summary-lines">
         <div>
           <span>Servicio</span>
-          <strong>{service.name}</strong>
+          <strong>{services.length ? services.map((s) => s.name).join(" + ") : "Por elegir"}</strong>
         </div>
+        {duration > 0 && (
+          <div>
+            <span>Duración</span>
+            <strong>{duration} min</strong>
+          </div>
+        )}
         <div>
           <span>Fecha</span>
-          <strong>{day ? `${day} Nov` : "Por elegir"}</strong>
+          <strong>{slot ? formatBogotaDate(slot.start) : "Por elegir"}</strong>
         </div>
         <div>
           <span>Hora</span>
-          <strong>{time || "Por elegir"}</strong>
+          <strong>{slot ? formatBogotaTime(slot.start) : "Por elegir"}</strong>
         </div>
-        {selectedAddons.length > 0 && (
-          <div>
-            <span>Extras</span>
-            <strong>{selectedAddons.length} añadidos</strong>
-          </div>
-        )}
       </div>
       <div className="summary-total">
         <span>Total estimado</span>

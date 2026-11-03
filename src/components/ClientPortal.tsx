@@ -100,6 +100,15 @@ function ScheduledCard({ apt }: { apt: ScheduledAppointment }) {
       )}
 
       <div className="scheduled-actions">
+        {apt.manageUrl && (
+          <a
+            className="btn btn-outline"
+            href={apt.manageUrl}
+            rel="noopener noreferrer"
+          >
+            <Icon name="calendar" size={15} /> Reprogramar o cancelar
+          </a>
+        )}
         <Button
           variant="outline"
           onClick={() => window.open(CLUB_INFO.mapsExternalUrl, "_blank")}
@@ -134,8 +143,6 @@ export function ClientPortal({
     name: string;
     preferredBarberId: string;
     styleNotes: string;
-    whatsappReminders: boolean;
-    emailReminders: boolean;
   }) => void;
   onCommitPhoneChange: (newFormattedPhone: string) => void;
   onLogout: () => void;
@@ -199,7 +206,6 @@ export function ClientPortal({
       <header className="portal-hero-header">
         <div className="portal-member-top">
           <div className="member-badges">
-            <span className="member-code">{user.memberCode}</span>
             <span className="google-verified-pill">
               <GoogleLogo />
               {user.email}
@@ -677,8 +683,6 @@ function ProfileAndPhoneSection({
     name: string;
     preferredBarberId: string;
     styleNotes: string;
-    whatsappReminders: boolean;
-    emailReminders: boolean;
   }) => void;
   onCommitPhoneChange: (newFormattedPhone: string) => void;
 }) {
@@ -687,10 +691,6 @@ function ProfileAndPhoneSection({
     user.preferredBarberId,
   );
   const [styleNotes, setStyleNotes] = useState(user.styleNotes);
-  const [whatsappReminders, setWhatsappReminders] = useState(
-    user.whatsappReminders,
-  );
-  const [emailReminders, setEmailReminders] = useState(user.emailReminders);
 
   // Phone cooldown policy & editor state
   const policy = useMemo(
@@ -716,8 +716,6 @@ function ProfileAndPhoneSection({
       name,
       preferredBarberId,
       styleNotes,
-      whatsappReminders,
-      emailReminders,
     });
   };
 
@@ -813,26 +811,6 @@ function ProfileAndPhoneSection({
               placeholder="Ej. Piel sensible en cuello, acabado mate, conservar remolino natural…"
             />
           </label>
-
-          <div className="profile-toggles">
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={whatsappReminders}
-                onChange={(e) => setWhatsappReminders(e.target.checked)}
-              />
-              <WhatsAppLogo size={15} />
-              <span>Recibir recordatorio de cita por WhatsApp (24 h antes)</span>
-            </label>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={emailReminders}
-                onChange={(e) => setEmailReminders(e.target.checked)}
-              />
-              <span>Recibir comprobantes y resumen en mi correo Google</span>
-            </label>
-          </div>
 
           <Button type="submit">
             Guardar preferencias <Icon name="check" size={15} />

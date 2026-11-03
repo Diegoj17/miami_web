@@ -1819,6 +1819,76 @@ img {
   width: 100%;
 }
 
+.guest-booking-intro-card {
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(135deg, rgba(169, 135, 84, 0.1), transparent 58%),
+    var(--surface);
+}
+
+.guest-intro-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--bronze-light);
+}
+
+.guest-intro-head > div {
+  display: grid;
+  gap: 3px;
+}
+
+.guest-intro-head strong {
+  color: var(--bone);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.guest-intro-head small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.guest-note {
+  margin: 14px 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.guest-access-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.guest-access-grid > div {
+  min-height: 76px;
+  padding: 11px;
+  border: 1px solid var(--line-soft);
+  background: rgba(0, 0, 0, 0.12);
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.guest-access-label {
+  color: var(--bronze-light);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.guest-access-grid strong {
+  color: var(--bone);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
 .login-benefits {
   margin-top: 28px;
   padding-top: 20px;
@@ -1867,31 +1937,6 @@ img {
   border: 1px solid var(--line);
   color: var(--bone);
   font-size: 14px;
-}
-
-.guest-quick-demos {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.guest-quick-demos small {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.guest-quick-demos button {
-  border: 1px solid var(--line-soft);
-  background: var(--surface);
-  color: var(--bronze-light);
-  font-size: 11px;
-  padding: 4px 10px;
-  cursor: pointer;
-}
-
-.guest-quick-demos button:hover {
-  border-color: var(--bronze);
 }
 
 .login-message {
@@ -2139,30 +2184,6 @@ img {
 .google-redirect-link {
   color: var(--bronze-light);
   text-decoration: underline;
-}
-
-.demo-login-shortcut {
-  margin-top: 14px;
-  text-align: center;
-}
-
-.demo-shortcut-btn {
-  border: 1px dashed rgba(169, 135, 84, 0.4);
-  background: rgba(169, 135, 84, 0.06);
-  color: var(--bronze-light);
-  font-size: 11px;
-  padding: 7px 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.demo-shortcut-btn:hover {
-  background: rgba(169, 135, 84, 0.14);
-  border-color: var(--bronze);
-  color: var(--bone);
 }
 
 @keyframes googleSpin {
@@ -3414,27 +3435,6 @@ img {
   cursor: not-allowed;
 }
 
-.profile-toggles {
-  padding-top: 6px;
-  display: grid;
-  gap: 10px;
-}
-
-.checkbox-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.checkbox-row input {
-  accent-color: var(--bronze);
-  width: 16px;
-  height: 16px;
-}
-
 /* Phone Security Card */
 .phone-card-header {
   display: flex;
@@ -3805,6 +3805,10 @@ img {
    RESPONSIVE BREAKPOINTS
    ========================================================= */
 @media (min-width: 700px) {
+  .guest-access-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .site-header {
     padding-inline: 5vw;
   }
@@ -4279,4 +4283,38 @@ img {
     scroll-behavior: auto !important;
     transition: none !important;
   }
+}
+
+/* Preguntas del negocio en la reserva */
+.booking-question {
+  border: 0;
+  padding: 0;
+  margin: 4px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+.booking-question legend {
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.booking-question legend span {
+  color: var(--bronze-light);
+}
+
+.booking-question-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.booking-question-options .btn {
+  min-height: 40px;
+}
+
+.booking-question-options .btn.is-selected {
+  background: var(--bronze);
+  border-color: var(--bronze);
+  color: var(--ink);
 }

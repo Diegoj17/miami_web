@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppointmentRating, barbers, UserProfileData } from "@/lib/data";
 import {
   ActiveSession,
-  addScheduledAppointment,
   commitPhoneChangeWithCooldown,
   getOrCreateGoogleUser,
-  loadAccountsStore,
   loadActiveSession,
   saveActiveSession,
   saveAppointmentRating,
@@ -18,6 +16,13 @@ import {
   backendSessionEnabled,
   fetchBackendClient,
 } from "@/lib/client-session";
+import {
+  agendaApiEnabled,
+  getCatalog,
+  getClientProfile,
+  rateAppointment,
+} from "@/lib/agenda-api";
+import { toPast, toScheduled } from "@/lib/agenda-mapping";
 import { BookingScreen } from "./BookingScreen";
 import { ClientPortal } from "./ClientPortal";
 import { Footer } from "./Footer";
@@ -34,12 +39,9 @@ export interface ServerGoogleUser {
 
 export default function CobreApp({
   googleOAuthConfigured = false,
-  demoLoginAllowed = false,
   serverGoogleUser = null,
 }: {
   googleOAuthConfigured?: boolean;
-  /** Selector de cuentas de demostración (solo desarrollo, sin OAuth real). */
-  demoLoginAllowed?: boolean;
   serverGoogleUser?: ServerGoogleUser | null;
 }) {
   const [screen, setScreen] = useState<Screen>("landing");
@@ -52,6 +54,29 @@ export default function CobreApp({
   const [currentUser, setCurrentUser] = useState<UserProfileData | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [authErrorReason, setAuthErrorReason] = useState<string | null>(null);
+  const [appointmentsError, setAppointmentsError] = useState("");
+
+  /**
+   * Citas del cliente desde el backend: las mismas que ve la agenda. Reemplaza
+   * por completo las citas locales (de ejemplo) del perfil en memoria.
+   */
+  const loadBackendAppointments = useCallback(async (base: UserProfileData) => {
+    try {
+      const [catalog, profile] = await Promise.all([getCatalog(), getClientProfile()]);
+      if (!profile) return;
+      setAppointmentsError("");
+      setCurrentUser({
+        ...base,
+        phone: profile.phone || base.phone,
+        scheduledAppointments: profile.scheduled.map((apt) => toScheduled(apt, catalog)),
+        pastAppointments: profile.history
+          .filter((apt) => apt.status !== "cancelled" && apt.status !== "no_show")
+          .map((apt) => toPast(apt, catalog)),
+      });
+    } catch {
+      setAppointmentsError("No pudimos cargar tus citas. Revisa tu conexión e inténtalo de nuevo.");
+    }
+  }, []);
 
   // Detecta si se regresó con un error o cancelación desde el flujo de autenticación
   useEffect(() => {
@@ -78,9 +103,12 @@ export default function CobreApp({
     void fetchBackendClient().then((client) => {
       if (cancelled) return;
       if (client) {
-        const profile = getOrCreateGoogleUser(client);
+        const base = getOrCreateGoogleUser(client);
+        // Hasta que respondan las citas reales no se muestran las de ejemplo.
+        const profile = { ...base, scheduledAppointments: [], pastAppointments: [] };
         setSession({ mode: "google", email: profile.email });
         setCurrentUser(profile);
+        if (agendaApiEnabled) void loadBackendAppointments(profile);
         if (googleResult === "ok") setScreen("portal");
       } else {
         // Sin sesión en el backend no hay sesión de Google en la landing.
@@ -123,24 +151,13 @@ export default function CobreApp({
       return;
     }
 
+    // Una sesión local no prueba una autenticación real; solo el servidor puede
+    // establecer la sesión de Google.
     const savedSession = loadActiveSession();
-    // Con OAuth real, una sesión de Google solo vale si el servidor validó la cookie firmada:
-    // lo guardado en localStorage no prueba nada.
-    if (savedSession?.mode === "google" && !demoLoginAllowed) {
-      saveActiveSession(null);
-    } else if (savedSession?.mode === "google") {
-      const store = loadAccountsStore();
-      const account = store[savedSession.email.toLowerCase()];
-      if (account) {
-        setSession(savedSession);
-        setCurrentUser(account);
-      } else {
-        saveActiveSession(null);
-      }
-    }
+    if (savedSession) saveActiveSession(null);
 
     setHydrated(true);
-  }, [serverGoogleUser, demoLoginAllowed]);
+  }, [serverGoogleUser]);
 
   const navigate = (next: Screen) => {
     if (next === "portal" && !session) {
@@ -158,26 +175,6 @@ export default function CobreApp({
       return;
     }
     setPortalTab(tab);
-    setScreen("portal");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleGoogleLoginSuccess = (params: {
-    email: string;
-    name: string;
-    avatarUrl?: string;
-  }) => {
-    // Con el backend, solo Google (vía servidor) puede iniciar la sesión.
-    if (!demoLoginAllowed || backendSessionEnabled) return;
-    const profile = getOrCreateGoogleUser(params);
-    const nextSession: ActiveSession = {
-      mode: "google",
-      email: profile.email,
-    };
-    saveActiveSession(nextSession);
-    setSession(nextSession);
-    setCurrentUser(profile);
-    setPortalTab("scheduled");
     setScreen("portal");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -248,13 +245,9 @@ export default function CobreApp({
           initialServiceId={bookingServiceId}
           currentUser={currentUser}
           onBack={() => navigate("landing")}
-          onAppointmentCreated={(newApt) => {
-            if (currentUser?.email) {
-              addScheduledAppointment(currentUser.email, newApt);
-              const store = loadAccountsStore();
-              const updated = store[currentUser.email.toLowerCase()];
-              if (updated) setCurrentUser(updated);
-            }
+          onAppointmentCreated={() => {
+            // La cita ya está en el backend: se vuelven a leer las del cliente.
+            if (currentUser) void loadBackendAppointments(currentUser);
           }}
           onNavigateHome={() => navigate("landing")}
           onNavigatePortal={() => openPortalTab("scheduled")}
@@ -265,9 +258,7 @@ export default function CobreApp({
         <LoginScreen
           onBack={() => navigate("landing")}
           googleOAuthConfigured={googleOAuthConfigured}
-          demoLoginAllowed={demoLoginAllowed}
           authErrorReason={authErrorReason}
-          onGoogleLoginSuccess={handleGoogleLoginSuccess}
           onStartBookingAsGuest={() => {
             setBookingBarberIndex(0);
             setBookingServiceId("signature");
@@ -277,12 +268,32 @@ export default function CobreApp({
         />
       )}
 
+      {screen === "portal" && appointmentsError && (
+        <p className="login-message is-error page-shell" role="alert">
+          {appointmentsError}
+        </p>
+      )}
+
       {screen === "portal" && session?.mode === "google" && currentUser && (
         <ClientPortal
           user={currentUser}
           activeTab={portalTab}
           onChangeTab={(tab) => setPortalTab(tab)}
           onSaveRating={(appointmentId: string, rating: AppointmentRating) => {
+            if (agendaApiEnabled) {
+              const comment = [
+                rating.comment.trim(),
+                rating.tags.length ? `Destacado: ${rating.tags.join(", ")}` : "",
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              void rateAppointment(appointmentId, rating.stars, comment)
+                .then(() => loadBackendAppointments(currentUser))
+                .catch(() =>
+                  setAppointmentsError("No se pudo guardar tu calificación. Inténtalo de nuevo."),
+                );
+              return;
+            }
             const updated = saveAppointmentRating(
               currentUser.email,
               appointmentId,

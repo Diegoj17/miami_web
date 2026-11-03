@@ -244,6 +244,8 @@ export interface ScheduledAppointment {
   clientNotes: string;
   referenceImage?: string;
   guestPhoneNormalized: string;
+  /** Enlace privado de la agenda para reprogramar o cancelar (citas del backend). */
+  manageUrl?: string;
 }
 
 export interface PastAppointment {

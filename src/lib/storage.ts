@@ -180,8 +180,6 @@ export function updateProfilePreferences(
     name: string;
     preferredBarberId: string;
     styleNotes: string;
-    whatsappReminders: boolean;
-    emailReminders: boolean;
   },
 ): UserProfileData | null {
   const key = email.trim().toLowerCase();
@@ -194,8 +192,6 @@ export function updateProfilePreferences(
     name: updates.name.trim() || account.name,
     preferredBarberId: updates.preferredBarberId,
     styleNotes: updates.styleNotes,
-    whatsappReminders: updates.whatsappReminders,
-    emailReminders: updates.emailReminders,
   };
 
   store[key] = updated;

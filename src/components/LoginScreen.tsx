@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { photos } from "@/lib/data";
 import { GoogleLogo, Icon } from "./Icons";
 import { Button, Eyebrow } from "./UIPrimitives";
@@ -8,28 +8,15 @@ import { Button, Eyebrow } from "./UIPrimitives";
 export function LoginScreen({
   onBack,
   googleOAuthConfigured,
-  demoLoginAllowed,
   authErrorReason,
-  onGoogleLoginSuccess,
   onStartBookingAsGuest,
 }: {
   onBack: () => void;
   googleOAuthConfigured: boolean;
-  demoLoginAllowed: boolean;
   authErrorReason?: string | null;
-  onGoogleLoginSuccess: (params: {
-    email: string;
-    name: string;
-    avatarUrl?: string;
-  }) => void;
   onStartBookingAsGuest: () => void;
 }) {
   const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
-  const [showGoogleChooser, setShowGoogleChooser] = useState(false);
-  const [showCustomGoogle, setShowCustomGoogle] = useState(false);
-  const [customName, setCustomName] = useState("");
-  const [customEmail, setCustomEmail] = useState("");
-  const [customError, setCustomError] = useState("");
   const [googleError, setGoogleError] = useState<string | null>(null);
 
   const redirectTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -74,12 +61,6 @@ export function LoginScreen({
       return;
     }
 
-    // Si estamos en desarrollo sin OAuth real configurado
-    if (demoLoginAllowed) {
-      setShowGoogleChooser(true);
-      return;
-    }
-
     setGoogleError(
       "El acceso con Google no está disponible en este momento. Puedes agendar tu cita como invitado.",
     );
@@ -92,27 +73,6 @@ export function LoginScreen({
     }
     setIsConnectingGoogle(false);
     onStartBookingAsGuest();
-  };
-
-  const handleCustomGoogleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!demoLoginAllowed) return;
-    setCustomError("");
-    const cleanEmail = customEmail.trim().toLowerCase();
-    const cleanName = customName.trim();
-    if (!cleanName || cleanName.length < 2) {
-      setCustomError("Ingresa tu nombre completo.");
-      return;
-    }
-    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      setCustomError("Ingresa un correo electrónico válido.");
-      return;
-    }
-    setShowGoogleChooser(false);
-    onGoogleLoginSuccess({
-      email: cleanEmail,
-      name: cleanName,
-    });
   };
 
   return (
@@ -238,19 +198,6 @@ export function LoginScreen({
                 </span>
               </div>
 
-              {demoLoginAllowed && (
-                <div className="demo-login-shortcut">
-                  <button
-                    type="button"
-                    className="demo-shortcut-btn"
-                    onClick={() => setShowGoogleChooser(true)}
-                  >
-                    <Icon name="spark" size={14} />
-                    <span>Probar cuentas demo locales (Santiago / Andrés)</span>
-                  </button>
-                </div>
-              )}
-
               <div className="login-divider">
                 <span>o si solo vienes a reservar</span>
               </div>
@@ -258,13 +205,26 @@ export function LoginScreen({
               <div className="guest-booking-intro-card">
                 <div className="guest-intro-head">
                   <Icon name="scissors" size={16} />
-                  <strong>Continuar como invitado</strong>
+                  <div>
+                    <strong>Reserva sin crear una cuenta</strong>
+                    <small>Ideal si solo vienes a agendar hoy</small>
+                  </div>
                 </div>
                 <p className="guest-note">
-                  El invitado no requiere cuenta ni puede revisar citas previas;
-                  solo genera su cita directamente. Te solicitaremos tus datos
-                  (nombre y teléfono) al confirmar tu cita.
+                  Elige tu servicio y horario. Al confirmar te pediremos
+                  únicamente tu nombre y teléfono para dejar registrada la
+                  cita.
                 </p>
+                <div className="guest-access-grid">
+                  <div>
+                    <span className="guest-access-label">Como invitado</span>
+                    <strong>Agendas tu próxima cita</strong>
+                  </div>
+                  <div>
+                    <span className="guest-access-label">Sin iniciar sesión</span>
+                    <strong>No verás tu historial ni tus citas guardadas</strong>
+                  </div>
+                </div>
                 <Button
                   variant="outline"
                   className="guest-button"
@@ -275,7 +235,7 @@ export function LoginScreen({
               </div>
 
               <div className="login-benefits">
-                <strong>Con tu cuenta de Google puedes</strong>
+                <strong>Lo que desbloqueas con tu cuenta</strong>
                 <span>
                   <Icon name="check" size={14} /> Ver tus citas programadas y
                   añadirlas al calendario
@@ -298,140 +258,6 @@ export function LoginScreen({
         </div>
       </section>
 
-      {/* Modal de selección de cuentas DEMO (solo en modo desarrollo) */}
-      {demoLoginAllowed && showGoogleChooser && (
-        <div
-          className="modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Seleccionar cuenta de Google"
-          onClick={() => setShowGoogleChooser(false)}
-        >
-          <div
-            className="google-chooser-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="google-chooser-head">
-              <div className="google-chooser-brand">
-                <GoogleLogo />
-                <span>Acceder con Google (Modo Demo)</span>
-              </div>
-              <button
-                type="button"
-                className="modal-close-btn"
-                onClick={() => setShowGoogleChooser(false)}
-                aria-label="Cerrar selector"
-              >
-                <Icon name="close" size={18} />
-              </button>
-            </div>
-
-            <div className="google-chooser-body">
-              <h2>Elige una cuenta</h2>
-              <p>
-                para continuar a <strong>Cobre Barber Club</strong>
-              </p>
-
-              <div className="google-account-list">
-                <button
-                  type="button"
-                  className="google-account-item"
-                  onClick={() => {
-                    setShowGoogleChooser(false);
-                    onGoogleLoginSuccess({
-                      email: "santiago.marquez@gmail.com",
-                      name: "Santiago Márquez",
-                    });
-                  }}
-                >
-                  <span className="account-avatar">S</span>
-                  <span className="account-meta">
-                    <strong>Santiago Márquez</strong>
-                    <small>santiago.marquez@gmail.com</small>
-                    <em>
-                      2 citas programadas · 2 por calificar · Teléfono
-                      habilitado
-                    </em>
-                  </span>
-                  <Icon name="chevron" size={16} />
-                </button>
-
-                <button
-                  type="button"
-                  className="google-account-item"
-                  onClick={() => {
-                    setShowGoogleChooser(false);
-                    onGoogleLoginSuccess({
-                      email: "andres.morales@gmail.com",
-                      name: "Andrés Morales",
-                    });
-                  }}
-                >
-                  <span className="account-avatar alt">A</span>
-                  <span className="account-meta">
-                    <strong>Andrés Morales</strong>
-                    <small>andres.morales@gmail.com</small>
-                    <em>
-                      1 cita programada · Teléfono en plazo de bloqueo (18 días)
-                    </em>
-                  </span>
-                  <Icon name="chevron" size={16} />
-                </button>
-
-                {!showCustomGoogle ? (
-                  <button
-                    type="button"
-                    className="google-account-other"
-                    onClick={() => setShowCustomGoogle(true)}
-                  >
-                    <Icon name="user" size={16} />
-                    <span>Usar otra cuenta de Google</span>
-                  </button>
-                ) : (
-                  <form
-                    className="custom-google-form"
-                    onSubmit={handleCustomGoogleSubmit}
-                  >
-                    <label>
-                      Nombre y apellido
-                      <input
-                        type="text"
-                        value={customName}
-                        onChange={(e) => setCustomName(e.target.value)}
-                        placeholder="Ej. Mateo Valencia"
-                      />
-                    </label>
-                    <label>
-                      Correo de Google
-                      <input
-                        type="email"
-                        value={customEmail}
-                        onChange={(e) => setCustomEmail(e.target.value)}
-                        placeholder="tu.correo@gmail.com"
-                      />
-                    </label>
-                    {customError && (
-                      <span className="field-error">{customError}</span>
-                    )}
-                    <div className="custom-google-actions">
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setShowCustomGoogle(false);
-                          setCustomError("");
-                        }}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button type="submit">Continuar</Button>
-                    </div>
-                  </form>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
