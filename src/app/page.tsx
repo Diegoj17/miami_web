@@ -10,9 +10,8 @@ export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const googleOAuthConfigured = isGoogleOAuthConfigured();
-  // El selector de cuentas de demostración solo existe en desarrollo y sin OAuth real.
-  const demoLoginAllowed =
-    !googleOAuthConfigured && process.env.NODE_ENV !== "production";
+  // En entorno de desarrollo se permite además el selector de prueba local por conveniencia.
+  const demoLoginAllowed = process.env.NODE_ENV !== "production";
 
   let serverGoogleUser = null;
   if (googleOAuthConfigured) {

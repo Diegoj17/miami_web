@@ -1,3 +1,4 @@
+import { BUSINESS_TIME_ZONE } from "./format";
 import { PHONE_COOLDOWN_DAYS } from "./config";
 
 export interface PhonePolicyStatus {
@@ -83,7 +84,10 @@ export function formatSpanishDate(date: Date, includeTime = false): string {
         year: "numeric",
       };
 
-  return new Intl.DateTimeFormat("es-MX", options).format(date);
+  return new Intl.DateTimeFormat("es-CO", {
+    ...options,
+    timeZone: BUSINESS_TIME_ZONE,
+  }).format(date);
 }
 
 export function evaluatePhonePolicy(

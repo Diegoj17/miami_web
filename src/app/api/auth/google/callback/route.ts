@@ -6,10 +6,39 @@ import {
   signGoogleSessionCookie,
 } from "@/lib/session-cookie";
 
-/** Redirige con un código de error y descarta el `state` de un solo uso. */
-function fail(reason: string, origin: string) {
-  const response = NextResponse.redirect(new URL(`/?auth=${reason}`, origin));
-  response.cookies.delete({ name: "cobre_oauth_state", path: "/api/auth/google" });
+const FLOW_PATH = "/api/auth/google";
+
+/**
+ * Página mínima que cierra la ventana emergente de Google y avisa a la landing
+ * por un canal del mismo origen. `ok` y `reason` son valores fijos del servidor.
+ */
+function popupPage(ok: boolean, reason: string): NextResponse {
+  const message = JSON.stringify({ type: "cobre-google", ok, reason });
+  const html = `<!doctype html><html lang="es-CO"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cobre Barber Club</title></head>
+<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0b0b0a;color:#eee9dc;font-family:system-ui,sans-serif;text-align:center">
+<p>${ok ? "Sesión iniciada. Ya puedes cerrar esta ventana." : "No se pudo iniciar sesión. Ya puedes cerrar esta ventana."}</p>
+<script>
+(function(){var m=${message};
+try{var c=new BroadcastChannel("cobre-google");c.postMessage(m);c.close();}catch(e){}
+try{localStorage.setItem("cobre_google_result",JSON.stringify({ok:m.ok,reason:m.reason,at:Date.now()}));}catch(e){}
+window.close();setTimeout(function(){location.replace(m.ok?"/":"/?auth="+m.reason);},600);})();
+</script></body></html>`;
+  return new NextResponse(html, {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+/** Termina el flujo: redirección normal o cierre de la ventana emergente. */
+function finish(origin: string, popup: boolean, ok: boolean, reason = "") {
+  const response = popup
+    ? popupPage(ok, reason)
+    : NextResponse.redirect(new URL(ok ? "/" : `/?auth=${reason}`, origin));
+  // `state` y la marca de ventana emergente son de un solo uso.
+  response.cookies.delete({ name: "cobre_oauth_state", path: FLOW_PATH });
+  response.cookies.delete({ name: "cobre_oauth_popup", path: FLOW_PATH });
   return response;
 }
 
@@ -25,6 +54,11 @@ export async function GET(request: Request) {
 
   const cookieStore = await cookies();
   const savedState = cookieStore.get("cobre_oauth_state")?.value;
+  const popup = cookieStore.get("cobre_oauth_popup")?.value === "1";
+
+  if (url.searchParams.get("error")) {
+    return finish(origin, popup, false, "cancelled");
+  }
 
   if (
     !code ||
@@ -34,7 +68,7 @@ export async function GET(request: Request) {
     !state ||
     state !== savedState
   ) {
-    return fail("oauth_error", origin);
+    return finish(origin, popup, false, "oauth_error");
   }
 
   try {
@@ -51,12 +85,12 @@ export async function GET(request: Request) {
     });
 
     if (!tokenRes.ok) {
-      return fail("token_error", origin);
+      return finish(origin, popup, false, "token_error");
     }
 
     const tokenJson = (await tokenRes.json()) as { access_token?: string };
     if (!tokenJson.access_token) {
-      return fail("no_token", origin);
+      return finish(origin, popup, false, "no_token");
     }
 
     const userRes = await fetch(
@@ -67,7 +101,7 @@ export async function GET(request: Request) {
     );
 
     if (!userRes.ok) {
-      return fail("userinfo_error", origin);
+      return finish(origin, popup, false, "userinfo_error");
     }
 
     const userInfo = (await userRes.json()) as {
@@ -79,7 +113,7 @@ export async function GET(request: Request) {
 
     // Solo correos que Google confirma como verificados.
     if (!userInfo.email || userInfo.email_verified !== true) {
-      return fail("missing_email", origin);
+      return finish(origin, popup, false, "missing_email");
     }
 
     const signedValue = signGoogleSessionCookie(
@@ -91,8 +125,7 @@ export async function GET(request: Request) {
       authSecret,
     );
 
-    const response = NextResponse.redirect(new URL("/", origin));
-    response.cookies.delete({ name: "cobre_oauth_state", path: "/api/auth/google" });
+    const response = finish(origin, popup, true);
     response.cookies.set("cobre_google_user", signedValue, {
       httpOnly: true,
       sameSite: "lax",
@@ -103,6 +136,6 @@ export async function GET(request: Request) {
 
     return response;
   } catch {
-    return fail("server_error", origin);
+    return finish(origin, popup, false, "server_error");
   }
 }

@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { BOOKING_ENABLED, CLUB_INFO, PHONE_COOLDOWN_DAYS } from "@/lib/config";
+import { formatCOP } from "@/lib/format";
 import {
   AppointmentRating,
   barbers,
@@ -191,7 +192,7 @@ function ScheduledCard({ apt }: { apt: ScheduledAppointment }) {
         </div>
         <div>
           <span>Total estimado</span>
-          <strong className="gold-price">${apt.total}</strong>
+          <strong className="gold-price">{formatCOP(apt.total)}</strong>
         </div>
       </div>
 
@@ -555,7 +556,7 @@ function HistoryAppointmentItem({
                 {entry.serviceName}
                 {entry.extras.length > 0 && ` + ${entry.extras.join(", ")}`}
               </small>
-              <strong className="history-price">${entry.total}</strong>
+              <strong className="history-price">{formatCOP(entry.total)}</strong>
             </div>
 
             <h2>{entry.lookTitle}</h2>

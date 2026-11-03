@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BOOKING_ENABLED, CLUB_INFO } from "@/lib/config";
+import { bogotaWeekday, formatCOP } from "@/lib/format";
 import { barbers, photos, services, testimonials } from "@/lib/data";
 import { Icon } from "./Icons";
 import { BookingButton, Button } from "./UIPrimitives";
@@ -19,7 +20,7 @@ export function LandingScreen({
   const [todayJsDay, setTodayJsDay] = useState<number>(2);
 
   useEffect(() => {
-    setTodayJsDay(new Date().getDay());
+    setTodayJsDay(bogotaWeekday());
   }, []);
 
   const goToLocation = () =>
@@ -251,7 +252,7 @@ export function LandingScreen({
                   <span>
                     <Icon name="clock" size={14} /> {service.duration}
                   </span>
-                  <strong>${service.price}</strong>
+                  <strong>{formatCOP(service.price)}</strong>
                 </div>
                 <BookingButton
                   variant="ghost"

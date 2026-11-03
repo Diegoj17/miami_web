@@ -2016,6 +2016,181 @@ img {
   font-size: 13px;
 }
 
+/* Estado: Redirigiendo a Google en la misma pantalla (sin ventanas emergentes) */
+.google-redirect-card {
+  padding: 34px 24px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.google-redirect-spinner-wrap {
+  position: relative;
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 22px;
+  display: grid;
+  place-items: center;
+}
+
+.google-redirect-spinner {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(169, 135, 84, 0.2);
+  border-top-color: var(--bronze-light);
+  border-right-color: var(--bronze);
+  animation: googleSpin 1s linear infinite;
+}
+
+.google-redirect-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+.google-redirect-logo svg {
+  width: 20px;
+  height: 20px;
+}
+
+.google-redirect-card .eyebrow {
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.google-redirect-card h2 {
+  font-family: var(--serif);
+  font-size: clamp(34px, 8vw, 44px);
+  font-weight: 500;
+  line-height: 0.95;
+  margin: 6px 0 12px;
+}
+
+.google-redirect-card h2 em {
+  color: var(--bronze-light);
+  font-style: italic;
+}
+
+.google-redirect-text {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 360px;
+  margin: 0 0 24px;
+}
+
+.google-redirect-progress-track {
+  width: 100%;
+  max-width: 340px;
+  height: 4px;
+  background: rgba(238, 233, 220, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 26px;
+}
+
+.google-redirect-progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--bronze), var(--bronze-light));
+  border-radius: 2px;
+  animation: redirectProgressFill 1.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.google-redirect-actions {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.google-redirect-back-btn {
+  width: 100%;
+  min-height: 50px;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--bronze);
+  background: rgba(169, 135, 84, 0.1);
+  color: var(--bone);
+  transition: all 0.2s ease;
+}
+
+.google-redirect-back-btn:hover {
+  background: var(--bronze);
+  color: var(--ink);
+}
+
+.google-redirect-subhint {
+  margin: 18px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.google-redirect-link {
+  color: var(--bronze-light);
+  text-decoration: underline;
+}
+
+.demo-login-shortcut {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.demo-shortcut-btn {
+  border: 1px dashed rgba(169, 135, 84, 0.4);
+  background: rgba(169, 135, 84, 0.06);
+  color: var(--bronze-light);
+  font-size: 11px;
+  padding: 7px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.demo-shortcut-btn:hover {
+  background: rgba(169, 135, 84, 0.14);
+  border-color: var(--bronze);
+  color: var(--bone);
+}
+
+@keyframes googleSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes redirectProgressFill {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .google-account-list {
   display: grid;
   gap: 10px;

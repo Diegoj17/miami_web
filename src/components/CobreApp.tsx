@@ -42,6 +42,19 @@ export default function CobreApp({
   const [session, setSession] = useState<ActiveSession>(null);
   const [currentUser, setCurrentUser] = useState<UserProfileData | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [authErrorReason, setAuthErrorReason] = useState<string | null>(null);
+
+  // Detecta si se regresó con un error o cancelación desde el flujo de autenticación
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const auth = params.get("auth");
+    if (auth) {
+      setAuthErrorReason(auth);
+      setScreen("login");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   // Hydrate persisted client session or real Google OAuth server cookie
   useEffect(() => {
@@ -196,6 +209,7 @@ export default function CobreApp({
           onBack={() => navigate("landing")}
           googleOAuthConfigured={googleOAuthConfigured}
           demoLoginAllowed={demoLoginAllowed}
+          authErrorReason={authErrorReason}
           onGoogleLoginSuccess={handleGoogleLoginSuccess}
           onGuestLookupSuccess={({ guestName, lookupQuery, appointments }) => {
             const guestSession: ActiveSession = {

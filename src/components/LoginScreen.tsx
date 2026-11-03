@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { photos, ScheduledAppointment } from "@/lib/data";
 import {
   guestLookupLockedMinutes,
@@ -15,13 +15,14 @@ export function LoginScreen({
   onBack,
   googleOAuthConfigured,
   demoLoginAllowed,
+  authErrorReason,
   onGoogleLoginSuccess,
   onGuestLookupSuccess,
 }: {
   onBack: () => void;
   googleOAuthConfigured: boolean;
-  /** Selector de cuentas de demostración: solo en desarrollo y sin OAuth real. */
   demoLoginAllowed: boolean;
+  authErrorReason?: string | null;
   onGoogleLoginSuccess: (params: {
     email: string;
     name: string;
@@ -34,32 +35,80 @@ export function LoginScreen({
   }) => void;
 }) {
   const [activeTab, setActiveTab] = useState<AuthTab>("google");
+  const [isConnectingGoogle, setIsConnectingGoogle] = useState(false);
   const [showGoogleChooser, setShowGoogleChooser] = useState(false);
   const [showCustomGoogle, setShowCustomGoogle] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customEmail, setCustomEmail] = useState("");
   const [customError, setCustomError] = useState("");
-  const [isRedirecting, setIsRedirecting] = useState(false);
-  const [googleError, setGoogleError] = useState("");
+  const [googleError, setGoogleError] = useState<string | null>(null);
+
+  const redirectTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Guest lookup state
   const [guestFolio, setGuestFolio] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
   const [guestError, setGuestError] = useState("");
 
+  // Reacciona a errores devueltos por el callback de OAuth en la URL
+  useEffect(() => {
+    if (!authErrorReason) return;
+    if (authErrorReason === "cancelled") {
+      setGoogleError(
+        "Se canceló el acceso con Google. Puedes intentar nuevamente o consultar tu cita como invitado.",
+      );
+    } else if (authErrorReason === "missing_config") {
+      setGoogleError(
+        "Faltan credenciales de Google OAuth en el archivo .env.local.",
+      );
+    } else {
+      setGoogleError(
+        "No se pudo completar el inicio de sesión con Google. Puedes volver a intentarlo o consultar tu cita como invitado.",
+      );
+    }
+  }, [authErrorReason]);
+
+  // Limpieza del temporizador de redirección al desmontar
+  useEffect(() => {
+    return () => {
+      if (redirectTimerRef.current) {
+        clearTimeout(redirectTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleGoogleClick = () => {
+    setGoogleError(null);
+
+    // Si Google OAuth está configurado en .env.local, mostramos el estado de conexión
+    // en la misma pantalla y luego redirigimos en la misma pestaña (sin abrir otra ventana).
     if (googleOAuthConfigured) {
-      setIsRedirecting(true);
-      window.location.href = "/api/auth/google";
+      setIsConnectingGoogle(true);
+      redirectTimerRef.current = setTimeout(() => {
+        window.location.assign("/api/auth/google");
+      }, 1600);
       return;
     }
+
+    // Si no hay OAuth real pero está habilitado el modo demo en desarrollo
     if (demoLoginAllowed) {
       setShowGoogleChooser(true);
       return;
     }
+
     setGoogleError(
       "El acceso con Google no está disponible en este momento. Puedes consultar tu cita como invitado.",
     );
+  };
+
+  const handleCancelGoogleConnecting = () => {
+    if (redirectTimerRef.current) {
+      clearTimeout(redirectTimerRef.current);
+      redirectTimerRef.current = null;
+    }
+    setIsConnectingGoogle(false);
+    setActiveTab("guest");
+    setGuestError("");
   };
 
   const handleCustomGoogleSubmit = (e: FormEvent) => {
@@ -153,13 +202,22 @@ export function LoginScreen({
             <b>C</b>
           </div>
 
-          <div className="auth-mode-tabs" role="tablist" aria-label="Tipo de acceso">
+          <div
+            className="auth-mode-tabs"
+            role="tablist"
+            aria-label="Tipo de acceso"
+          >
             <button
               type="button"
               role="tab"
               aria-selected={activeTab === "google"}
               className={activeTab === "google" ? "active" : ""}
               onClick={() => {
+                if (redirectTimerRef.current) {
+                  clearTimeout(redirectTimerRef.current);
+                  redirectTimerRef.current = null;
+                }
+                setIsConnectingGoogle(false);
                 setActiveTab("google");
                 setGuestError("");
               }}
@@ -172,7 +230,14 @@ export function LoginScreen({
               role="tab"
               aria-selected={activeTab === "guest"}
               className={activeTab === "guest" ? "active" : ""}
-              onClick={() => setActiveTab("guest")}
+              onClick={() => {
+                if (redirectTimerRef.current) {
+                  clearTimeout(redirectTimerRef.current);
+                  redirectTimerRef.current = null;
+                }
+                setIsConnectingGoogle(false);
+                setActiveTab("guest");
+              }}
             >
               <Icon name="search" size={14} />
               Como invitado
@@ -180,79 +245,141 @@ export function LoginScreen({
           </div>
 
           {activeTab === "google" ? (
-            <div className="auth-pane">
-              <Eyebrow>Tu cuenta Cobre</Eyebrow>
-              <h1>
-                Qué gusto
-                <br />
-                <em>verte de nuevo.</em>
-              </h1>
-              <p className="login-intro">
-                Accede con tu cuenta de Google para gestionar tus próximas citas,
-                revisar y calificar tus visitas anteriores y administrar tu
-                perfil.
-              </p>
-
-              <button
-                className="google-button"
-                type="button"
-                disabled={isRedirecting}
-                onClick={handleGoogleClick}
+            isConnectingGoogle ? (
+              /* Estado "Enviando para seleccionar la cuenta" en la misma pantalla (sin ventana emergente) */
+              <div
+                className="google-redirect-card"
+                role="status"
+                aria-live="polite"
               >
-                <GoogleLogo />
-                <span>
-                  {isRedirecting
-                    ? "Conectando con Google…"
-                    : "Continuar con Google"}
-                </span>
-              </button>
+                <div className="google-redirect-spinner-wrap">
+                  <div className="google-redirect-spinner" />
+                  <div className="google-redirect-logo">
+                    <GoogleLogo />
+                  </div>
+                </div>
 
-              {googleError && (
-                <p className="login-message is-error" role="alert">
-                  {googleError}
+                <Eyebrow>Conexión en curso</Eyebrow>
+                <h2>
+                  Conectando con <em>Google…</em>
+                </h2>
+                <p className="google-redirect-text">
+                  Te estamos dirigiendo a Google para que selecciones tu cuenta.
+                  No necesitas abrir ninguna otra ventana.
                 </p>
-              )}
 
-              <div className="login-security-badge">
-                <Icon name="shield" size={14} />
-                <span>
-                  Acceso seguro sin contraseñas · Sincronizado con tu correo
-                  verificado
-                </span>
+                <div className="google-redirect-progress-track">
+                  <div className="google-redirect-progress-bar" />
+                </div>
+
+                <div className="google-redirect-actions">
+                  <Button
+                    variant="outline"
+                    className="google-redirect-back-btn"
+                    onClick={handleCancelGoogleConnecting}
+                  >
+                    <Icon name="back" size={16} />
+                    <span>Regresar / Entrar como invitado</span>
+                  </Button>
+                </div>
+
+                <p className="google-redirect-subhint">
+                  ¿Prefieres no esperar?{" "}
+                  <a href="/api/auth/google" className="google-redirect-link">
+                    Ir a Google ahora
+                  </a>
+                </p>
               </div>
+            ) : (
+              <div className="auth-pane">
+                <Eyebrow>Tu cuenta Cobre</Eyebrow>
+                <h1>
+                  Qué gusto
+                  <br />
+                  <em>verte de nuevo.</em>
+                </h1>
+                <p className="login-intro">
+                  Accede con tu cuenta de Google para gestionar tus próximas
+                  citas, revisar y calificar tus visitas anteriores y administrar
+                  tu perfil.
+                </p>
 
-              <div className="login-divider">
-                <span>o acceso puntual</span>
+                <button
+                  className="google-button"
+                  type="button"
+                  onClick={handleGoogleClick}
+                >
+                  <GoogleLogo />
+                  <span>Continuar con Google</span>
+                </button>
+
+                {googleError && (
+                  <div className="login-message is-error" role="alert">
+                    <p>{googleError}</p>
+                    <button
+                      type="button"
+                      className="inline-link-btn"
+                      onClick={() => setActiveTab("guest")}
+                    >
+                      Ir a consulta como invitado →
+                    </button>
+                  </div>
+                )}
+
+                <div className="login-security-badge">
+                  <Icon name="shield" size={14} />
+                  <span>
+                    Acceso seguro sin contraseñas · Sincronizado en esta misma
+                    página
+                  </span>
+                </div>
+
+                {demoLoginAllowed && (
+                  <div className="demo-login-shortcut">
+                    <button
+                      type="button"
+                      className="demo-shortcut-btn"
+                      onClick={() => setShowGoogleChooser(true)}
+                    >
+                      <Icon name="spark" size={14} />
+                      <span>Probar cuentas demo locales (Santiago / Andrés)</span>
+                    </button>
+                  </div>
+                )}
+
+                <div className="login-divider">
+                  <span>o acceso puntual</span>
+                </div>
+
+                <Button
+                  variant="outline"
+                  className="guest-button"
+                  onClick={() => setActiveTab("guest")}
+                >
+                  Consultar cita como invitado <Icon name="arrow" />
+                </Button>
+
+                <div className="login-benefits">
+                  <strong>Tu cuenta con Google incluye</strong>
+                  <span>
+                    <Icon name="check" size={14} /> Consulta detallada de citas
+                    programadas
+                  </span>
+                  <span>
+                    <Icon name="check" size={14} /> Historial completo de cortes
+                    y notas del barbero
+                  </span>
+                  <span>
+                    <Icon name="check" size={14} /> Calificación con estrellas y
+                    reseñas de cada visita
+                  </span>
+                  <span>
+                    <Icon name="check" size={14} /> Perfil personal y
+                    actualización protegida de teléfono
+                  </span>
+                </div>
               </div>
-
-              <Button
-                variant="outline"
-                className="guest-button"
-                onClick={() => setActiveTab("guest")}
-              >
-                Consultar cita como invitado <Icon name="arrow" />
-              </Button>
-
-              <div className="login-benefits">
-                <strong>Tu cuenta con Google incluye</strong>
-                <span>
-                  <Icon name="check" size={14} /> Consulta detallada de citas
-                  programadas
-                </span>
-                <span>
-                  <Icon name="check" size={14} /> Historial completo de cortes y
-                  notas del barbero
-                </span>
-                <span>
-                  <Icon name="check" size={14} /> Calificación con estrellas y
-                  reseñas de cada visita
-                </span>
-                <span>
-                  <Icon name="check" size={14} /> Perfil personal y actualización
-                  protegida de teléfono
-                </span>
-              </div>
-            </div>
+            )
           ) : (
             <div className="auth-pane">
               <Eyebrow>Consulta rápida</Eyebrow>
@@ -262,8 +389,8 @@ export function LoginScreen({
                 <em>como invitado.</em>
               </h1>
               <p className="login-intro">
-                Ingresa el código de tu cita y el teléfono de la reservación para
-                consultar fecha, horario y barbero sin crear cuenta.
+                Ingresa el código de tu cita y el teléfono de la reservación
+                para consultar fecha, horario y barbero sin crear cuenta.
               </p>
 
               <form className="guest-lookup-form" onSubmit={handleGuestSubmit}>
@@ -282,7 +409,9 @@ export function LoginScreen({
                     maxLength={12}
                   />
                 </div>
-                <label htmlFor="guest-phone-input">Teléfono de la reservación</label>
+                <label htmlFor="guest-phone-input">
+                  Teléfono de la reservación
+                </label>
                 <div className="guest-input-row">
                   <input
                     id="guest-phone-input"
@@ -328,8 +457,8 @@ export function LoginScreen({
               <div className="guest-scope-box">
                 <Icon name="lock" size={15} />
                 <p>
-                  <strong>Alcance del modo invitado:</strong> permite visualizar
-                  únicamente tus citas programadas. Para acceder a tu{" "}
+                  <strong>Alcance del modo invitado:</strong> permite
+                  visualizar únicamente tus citas programadas. Para acceder a tu{" "}
                   <em>historial de cortes</em>, <em>calificar visitas</em> y{" "}
                   <em>editar tu perfil o teléfono</em>,{" "}
                   <button
@@ -347,6 +476,7 @@ export function LoginScreen({
         </div>
       </section>
 
+      {/* Modal de selección de cuentas DEMO (solo en modo desarrollo) */}
       {demoLoginAllowed && showGoogleChooser && (
         <div
           className="modal-backdrop"
@@ -362,7 +492,7 @@ export function LoginScreen({
             <div className="google-chooser-head">
               <div className="google-chooser-brand">
                 <GoogleLogo />
-                <span>Acceder con Google</span>
+                <span>Acceder con Google (Modo Demo)</span>
               </div>
               <button
                 type="button"
@@ -376,7 +506,9 @@ export function LoginScreen({
 
             <div className="google-chooser-body">
               <h2>Elige una cuenta</h2>
-              <p>para continuar a <strong>Cobre Barber Club</strong></p>
+              <p>
+                para continuar a <strong>Cobre Barber Club</strong>
+              </p>
 
               <div className="google-account-list">
                 <button
@@ -395,7 +527,8 @@ export function LoginScreen({
                     <strong>Santiago Márquez</strong>
                     <small>santiago.marquez@gmail.com</small>
                     <em>
-                      2 citas programadas · 2 por calificar · Teléfono habilitado
+                      2 citas programadas · 2 por calificar · Teléfono
+                      habilitado
                     </em>
                   </span>
                   <Icon name="chevron" size={16} />
@@ -473,12 +606,6 @@ export function LoginScreen({
                   </form>
                 )}
               </div>
-
-              <p className="google-chooser-footnote">
-                Al configurar <code>AUTH_GOOGLE_ID</code> y{" "}
-                <code>AUTH_GOOGLE_SECRET</code> en tu entorno, este botón redirige
-                directamente a Google OAuth 2.0.
-              </p>
             </div>
           </div>
         </div>
